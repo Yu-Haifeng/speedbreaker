@@ -117,9 +117,11 @@ namespace install
     std::filesystem::path DefaultInstallPath();
 
     // The marker Install writes into the game directory last: it records the
-    // manifest version the files were checked against. A dot file, so file
-    // managers hide it; the guest would still see it in a "*" listing of the
-    // disc root (NtQueryDirectoryFile doesn't filter), which is harmless.
+    // manifest version the files were checked against (what every check
+    // here reads), and, for people reading it, the executable's hash and the
+    // disc's region. A dot file, so file managers hide it; the guest would
+    // still see it in a "*" listing of the disc root (NtQueryDirectoryFile
+    // doesn't filter), which is harmless.
     inline constexpr const char* kInstallMarker = ".nfsmw-install";
 
     // The manifest version recorded in `dir`'s marker, if there is one.

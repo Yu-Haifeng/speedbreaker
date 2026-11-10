@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cctype>
 #include <cstdio>
 #include <cstring>
 #include <format>
@@ -953,6 +954,11 @@ namespace install
                 std::string_view line = content.substr(0, end);
                 content = end == std::string_view::npos ? std::string_view() : content.substr(end + 1);
                 if (!line.starts_with(key))
+                    continue;
+                // "<key> = \"<value>\"" -- a longer key with the same prefix
+                // (say "region_extra") is another field, not this one.
+                if (line.size() > key.size() && line[key.size()] != '='
+                    && !std::isspace(static_cast<unsigned char>(line[key.size()])))
                     continue;
                 size_t first = line.find('"'), last = line.rfind('"');
                 if (first == std::string_view::npos || last <= first)

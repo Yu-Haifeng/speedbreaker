@@ -236,6 +236,13 @@ namespace settings
     const Option* Find(std::string_view table, std::string_view key);
     const char* CategoryName(Category category);
 
+    // The enum entries the menu may offer for `o` on the running disc. Most
+    // options show all of them; Game > Language leaves out Chinese on any
+    // release but the Asian (NTSC) one, whose language table has it. The
+    // stored value is left alone, so a settings.toml carried over from an
+    // Asian disc still says Chinese if the player puts that disc back.
+    std::span<const EnumEntry> Entries(const Option& o);
+
     namespace detail
     {
         // 0: untouched, 1: environment and defaults applied (read before

@@ -15,7 +15,16 @@ int main()
     using namespace ui::i18n;
 
     CHECK(FromLocaleTag("zh_CN.UTF-8") == Language::ChineseSimplified, "zh_CN");
-    CHECK(FromLocaleTag("zh-Hant-TW") == Language::ChineseSimplified, "zh-Hant");
+    CHECK(FromLocaleTag("zh-Hans-CN") == Language::ChineseSimplified, "zh-Hans");
+    CHECK(FromLocaleTag("zh-Hans-TW") == Language::ChineseSimplified, "zh-Hans decides before the region");
+    CHECK(FromLocaleTag("zh-SG") == Language::ChineseSimplified, "zh-SG");
+    CHECK(FromLocaleTag("zh") == Language::ChineseSimplified, "zh");
+    // Only Simplified Chinese is translated: a traditional locale falls
+    // back to English instead of silently showing 简体中文.
+    CHECK(FromLocaleTag("zh-Hant-TW") == Language::English, "zh-Hant-TW");
+    CHECK(FromLocaleTag("zh-TW") == Language::English, "zh-TW");
+    CHECK(FromLocaleTag("zh-HK") == Language::English, "zh-HK");
+    CHECK(FromLocaleTag("zh-MO") == Language::English, "zh-MO");
     CHECK(FromLocaleTag("en-US") == Language::English, "en-US");
     CHECK(FromLocaleTag("fr_FR") == Language::English, "fr");
     CHECK(FromLocaleTag("") == Language::English, "empty");
@@ -34,6 +43,15 @@ int main()
     CHECK(Current() == Language::ChineseSimplified, "Chinese, directly");
     CHECK(Tr("Settings") == "设置", "Settings: %.*s", int(Tr("Settings").size()), Tr("Settings").data());
     CHECK(std::string(C("Close")) == "关闭", "null-terminated");
+    // C()'s pointer is process-stable: a dialog may hold a label past the
+    // frame that translated it, and the key itself may be a temporary.
+    const char* held = C("Close");
+    const char* heldDynamic = nullptr;
+    {
+        const std::string dynamic = "a string no translation has";
+        heldDynamic = C(dynamic.c_str());
+    }
+    CHECK(std::string(heldDynamic) == "a string no translation has", "a dynamic key's text outlives its string");
     CHECK(Format("Reset every {} setting to its default?", Tr("Display")) == "将“显示”页的每项设置恢复为默认值？",
         "%s", Format("Reset every {} setting to its default?", Tr("Display")).c_str());
     CHECK(Tr("a string no translation has") == "a string no translation has", "fallback");
@@ -56,6 +74,8 @@ int main()
 
     Use(int32_t(Choice::English));
     CHECK(Current() == Language::English, "English, directly");
+    CHECK(std::string(held) == "关闭", "a label held across a language switch stays valid");
+    CHECK(std::string(C("Close")) == "Close", "a new call now gives English");
     CHECK(Tr("Settings") == "Settings", "English source");
     CHECK(std::string(Tag()) == "en", "%s", Tag());
 

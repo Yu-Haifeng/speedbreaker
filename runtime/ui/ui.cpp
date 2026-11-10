@@ -29,7 +29,9 @@
 
 #include <SDL3/SDL.h>
 
+#include <chrono>
 #include <deque>
+#include <filesystem>
 
 namespace ui
 {
@@ -49,12 +51,20 @@ namespace ui
         // The overlay's Chinese text: the embedded Roboto has no CJK glyphs,
         // so merge a system font's common simplified Chinese set on first use.
         // ImGui 1.92's dynamic atlas uploads the new glyphs on the next frame.
-        bool s_chineseFontChecked = false;
+        // A font can appear after the first try (installed later, or mounted
+        // into a container), so a miss is retried now and then; only a
+        // successful merge stops the attempts.
+        bool s_chineseFontLoaded = false;
+        bool s_chineseFontWarned = false;
+        std::chrono::steady_clock::time_point s_nextChineseFontTry{};
         void AddChineseFont(ImGuiIO& io)
         {
-            if (s_chineseFontChecked)
+            if (s_chineseFontLoaded)
                 return;
-            s_chineseFontChecked = true;
+            const auto now = std::chrono::steady_clock::now();
+            if (now < s_nextChineseFontTry)
+                return;
+            s_nextChineseFontTry = now + std::chrono::seconds(5);
             static constexpr const char* kFonts[] = {
 #if defined(__APPLE__)
                 "/System/Library/Fonts/PingFang.ttc",
@@ -86,11 +96,16 @@ namespace ui
                 config.GlyphOffset = ImVec2(0, 0);
                 if (io.Fonts->AddFontFromFileTTF(path, kFontSize, &config, io.Fonts->GetGlyphRangesChineseSimplifiedCommon()))
                 {
+                    s_chineseFontLoaded = true;
                     fprintf(stderr, "[ui] Chinese font: %s\n", path);
                     return;
                 }
             }
-            fprintf(stderr, "[ui] no system Chinese font found: Chinese overlay text needs one\n");
+            if (!s_chineseFontWarned)
+            {
+                s_chineseFontWarned = true;
+                fprintf(stderr, "[ui] no system Chinese font found: Chinese overlay text needs one (retrying)\n");
+            }
         }
 
         SDL_Window* s_window = nullptr;
@@ -812,7 +827,9 @@ namespace ui
         ImGui::DestroyContext();
         s_ready = false;
         s_rendererReady = false;
-        s_chineseFontChecked = false;
+        s_chineseFontLoaded = false;
+        s_chineseFontWarned = false;
+        s_nextChineseFontTry = {};
         s_modal = nullptr;
         s_heldPress.clear();
         UpdateCapture();

@@ -273,7 +273,7 @@ static void AsianInstalls(const fs::path& root)
     StandIn(user, asia->Xex().size, std::string(asia->version).c_str(), asia->Xex().sha256);
     std::optional<GameInstall> found = FindGameInstall();
     CHECK(!found && !InstalledRegion(user), "an Asian marker alone can't authenticate a zero-filled default.xex");
-    CHECK(RegionFolder("/h/game", *asia) == fs::path("/h/game-ntsc-asia"), "RegionFolder Asia: %s",
+    CHECK(RegionFolder("/h/game", *asia) == fs::path("/h/game NTSC-ASIA"), "RegionFolder Asia: %s",
         RegionFolder("/h/game", *asia).c_str());
 
     // A hand-made folder of the shared size with no marker: zeros are neither
@@ -286,7 +286,7 @@ static void AsianInstalls(const fs::path& root)
     fs::path dir = root / "keep-asia", game = dir / "game";
     StandIn(game, pal->Xex().size, "2e42eb3950fcc436", pal->Xex().sha256);
     RegionKeep k = KeepOtherRegion(game, *asia, [&](const fs::path& p) -> const Manifest* { return p == game ? pal : nullptr; });
-    CHECK(k.kept == pal && k.gameDir == dir / "game-ntsc-asia", "Asia beside PAL: %s", k.gameDir.c_str());
+    CHECK(k.kept == pal && k.gameDir == dir / "game NTSC-ASIA", "Asia beside PAL: %s", k.gameDir.c_str());
 #else
     (void)root;
 #endif

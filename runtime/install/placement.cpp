@@ -951,8 +951,6 @@ namespace install
         fs::path dir = gameDir;
         if (!dir.has_filename() && dir.has_parent_path())
             dir = dir.parent_path();  // "game/": "game"
-        if (incoming.region == "ntsc-asia")
-            return dir.parent_path() / (dir.filename().string() + "-ntsc-asia");
         std::string suffix(incoming.region);
         for (char& c : suffix)
             c = char(std::toupper(static_cast<unsigned char>(c)));

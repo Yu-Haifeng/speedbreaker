@@ -3,10 +3,14 @@
 
 #include <update/release_names.h>  // SB_APP_NAME, in the two GitHub sentences
 
+#include <algorithm>
 #include <array>
 #include <atomic>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
+#include <functional>
+#include <mutex>
 #include <string_view>
 #include <unordered_map>
 
@@ -129,7 +133,7 @@ namespace ui::i18n
             {"2x (3200x3200)", "2x (3200x3200)"},
 
             // Settings rows: labels.
-            {"Overlay Language", "Overlay 语言"},
+            {"Overlay Language", "界面语言"},
             {"Fullscreen", "全屏"},
             {"V-Sync", "垂直同步"},
             {"Frame Rate", "帧率"},
@@ -170,7 +174,7 @@ namespace ui::i18n
             {"Centering Force", "回正力"},
             {"Wheel Settings Version", "方向盘设置版本"},
             {"Asynchronous Shaders", "异步着色器"},
-            {"Performance Overlay", "性能 Overlay"},
+            {"Performance Overlay", "性能叠层"},
             {"Check for Updates at Startup", "启动时检查更新"},
             {"Language", "游戏语言"},
             {"Steering Axis", "转向轴"},
@@ -195,7 +199,7 @@ namespace ui::i18n
             {"Start Button", "Start 键"},
 
             // Settings rows: descriptions.
-            {"Language of SpeedBreaker's own menus, performance overlay and dialogs. System follows this device's language.", "SpeedBreaker 自带菜单、性能 Overlay 和对话框的语言。跟随系统会使用本机语言。"},
+            {"Language of SpeedBreaker's own menus, performance overlay and dialogs. System follows this device's language.", "SpeedBreaker 自带菜单、性能叠层和对话框的语言。跟随系统会使用本机语言。"},
             {"Fill the screen with a borderless window. Off: a resizable window.", "使用无边框窗口填满屏幕。关闭：可调整大小的窗口。"},
             {"Show each frame on a display refresh. Off can tear, but frames appear sooner.", "每次显示器刷新时显示一帧。关闭可能出现撕裂，但画面更早出现。"},
             {"Auto: 60, or 30 while the device is hot or can't hold 60. A steady 30 feels smoother than a shaky 60 (the Steam Frame's headset). The game keeps its speed.", "自动：60；设备过热或无法稳定 60 时降为 30。稳定的 30 比波动的 60 更顺畅（Steam Frame 头显）。游戏速度保持不变。"},
@@ -211,7 +215,7 @@ namespace ui::i18n
             {"Lighter or darker shadows and mid-tones, a gentle step at a time, as a TV's brightness. Black and white stay put. 0 is the original picture.", "像电视亮度一样逐级调亮或调暗阴影与中间调。黑白场保持不变。0 为原始画面。"},
             {"The gamma ramp the game itself sets for a real Xbox 360's TV output: a little deeper shadows and brighter mid-tones, as on the console. Off: the flatter picture of SpeedBreaker 0.1.3 and earlier.", "游戏为真实 Xbox 360 电视输出设置的伽马曲线：阴影稍深、中间调更亮，与主机一致。关闭：SpeedBreaker 0.1.3 及更早版本的较平画面。"},
             {"A cooler picture with less of the game's yellow: blue raised, red and green lowered a little, over the whole game picture (menus and movies too). Off: the game's own colors, as on the Xbox 360.", "降低游戏画面中的黄色调，使整体更冷：提高蓝色，略微降低红绿，作用于整个游戏画面（包括菜单和影片）。关闭：与 Xbox 360 一致的游戏原色。"},
-            {"Brighter highlights on an HDR display (extended dynamic range). The game's own picture, including its front end, follows the highlights; this settings overlay stays at standard brightness. Off: the standard-range picture.", "在 HDR 显示器上提供更亮的高光（扩展动态范围）。游戏画面（包括前端）会随高光变化；此设置 Overlay 保持标准亮度。关闭：标准动态范围画面。"},
+            {"Brighter highlights on an HDR display (extended dynamic range). The game's own picture, including its front end, follows the highlights; this settings overlay stays at standard brightness. Off: the standard-range picture.", "在 HDR 显示器上提供更亮的高光（扩展动态范围）。游戏画面（包括前端）会随高光变化；此设置界面保持标准亮度。关闭：标准动态范围画面。"},
             {"How HDR is sent. Auto: Extended Linear on a display that reports HDR capability, otherwise standard range. HDR10 (PQ) sends the PQ signal and metadata; the display's HDR mode still follows macOS.", "HDR 的发送方式。自动：显示器报告支持 HDR 时使用扩展线性，否则使用标准范围。HDR10 (PQ) 发送 PQ 信号和元数据；显示器 HDR 模式仍由 macOS 控制。"},
             {"How far white and highlights go above SDR white: 2x by default, 3x, or 4x. A frame that is mostly white is dimmed toward SDR automatically, so a boot flash or a full-screen logo does not become a 4x flash.", "白色和高光高出 SDR 白色的倍数：默认 2x、3x 或 4x。以白色为主的画面会自动向 SDR 压暗，避免启动闪光或全屏 Logo 变成 4x 闪光。"},
             {"How bright the game's ordinary white is in HDR10, in nits; highlights go HDR Strength times above it. Auto matches the system: 400 on SteamOS and the Steam Deck, 200 on Windows and Linux, 100 on a Mac. Raise it if HDR looks dimmer than the game in SDR.", "HDR10 中游戏普通白色的亮度（尼特）；高光再乘以 HDR 强度。自动跟随系统：SteamOS 和 Steam Deck 为 400，Windows/Linux 为 200，Mac 为 100。若 HDR 比 SDR 暗，可提高此值。"},
@@ -248,7 +252,7 @@ namespace ui::i18n
             {"Which of the wheel's axes this is, as the device numbers them. -1: from the device.", "方向盘轴，按设备编号。-1：由设备决定。"},
             {"What the pedal's axis reads there, as Calibrate measured it.", "踏板轴在该位置的读数，由校准测得。"},
             {"Which of the wheel's buttons this control is, as Calibrate recorded it.", "此操作对应的方向盘按键，由校准记录。"},
-            {"The language of the game's menus, race text and video subtitles: English (the USA disc's), French, German, Italian, Spanish, Dutch, Swedish, Danish, Polish, Finnish, or Chinese (the Asian disc's). The movies and the speech stay in English on the USA and Asian discs, as they have them. The European (PAL) Spanish disc has Spanish movies and speech, and starts in Spanish; another language there keeps them in Spanish. The Asian disc starts in Chinese; choose English there to switch its menus and subtitles to English.", "游戏菜单、比赛文字和影片字幕的语言：英语（美版光盘）、法语、德语、意大利语、西班牙语、荷兰语、瑞典语、丹麦语、波兰语、芬兰语或中文（亚洲版光盘）。美版和亚洲版光盘的影片与语音保持英语。欧版（PAL）西班牙语光盘包含西班牙语影片和语音，并以西班牙语启动；在那里选择其他语言仍会保留西班牙语影片和语音。亚洲版以中文启动；选择 English 可切换其菜单和字幕。"},
+            {"The language of the game's menus, race text and video subtitles: English (the USA disc's), French, German, Italian, Spanish, Dutch, Swedish, Danish, Polish and Finnish, and Chinese on the Asian disc, the only row that offers it. The movies and the speech stay in English on the USA and Asian discs, as they have them. The European (PAL) Spanish disc has Spanish movies and speech, and starts in Spanish; another language there keeps them in Spanish. The Asian disc starts in Chinese; choose English there to switch its menus and subtitles to English.", "游戏菜单、比赛文字和影片字幕的语言：英语（美版光盘）、法语、德语、意大利语、西班牙语、荷兰语、瑞典语、丹麦语、波兰语和芬兰语；中文仅在亚洲版光盘上提供。美版和亚洲版光盘的影片与语音保持英语。欧版（PAL）西班牙语光盘包含西班牙语影片和语音，并以西班牙语启动；在那里选择其他语言仍会保留西班牙语影片和语音。亚洲版以中文启动；选择 English 可切换其菜单和字幕。"},
 
             // Performance overlay.
             {"{:.0f} fps", "{:.0f} 帧/秒"},
@@ -449,17 +453,58 @@ namespace ui::i18n
             default: return SystemLanguage();
             }
         }
+
+        bool IEquals(std::string_view a, std::string_view b)
+        {
+            return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin(), [](char x, char y) {
+                return std::tolower(static_cast<unsigned char>(x)) == std::tolower(static_cast<unsigned char>(y));
+            });
+        }
+
+        // Translation without reading Current(): C() keeps a stable copy of
+        // each language's text, so switching language can't invalidate one.
+        std::string_view Translate(std::string_view english, Language language)
+        {
+            if (language == Language::English)
+                return english;
+            const auto& map = ZhHans();
+            if (auto it = map.find(english); it != map.end())
+                return it->second;
+            return english;
+        }
     }
 
     Language FromLocaleTag(std::string_view tag)
     {
-        // "zh_CN.UTF-8", "zh-Hant-TW", "en-US": the language before the
-        // first separator is enough.
-        size_t end = tag.find_first_of("_-.");
-        std::string_view language = tag.substr(0, end);
-        if (language.size() == 2 && (language[0] == 'z' || language[0] == 'Z') && (language[1] == 'h' || language[1] == 'H'))
-            return Language::ChineseSimplified;
-        return Language::English;
+        // "zh_CN.UTF-8", "zh-Hans-CN", "zh-Hant-TW", "en-US": the language
+        // is what comes before the first separator. Only Simplified Chinese
+        // has a translation; a traditional script or region (Hant, TW, HK,
+        // MO) falls back to English rather than silently showing 简体中文.
+        // Overlay Language still lets those players choose it themselves.
+        const size_t end = tag.find_first_of("_-.");
+        const std::string_view language = tag.substr(0, end);
+        if (language.size() != 2 || !IEquals(language.substr(0, 1), "z") || !IEquals(language.substr(1, 1), "h"))
+            return Language::English;
+        // "zh-Hans-CN" says the script outright; "zh-TW" only the region, and
+        // Taiwan, Hong Kong and Macao write traditional Chinese. A script, when
+        // there is one, decides before the region does.
+        bool hans = false;
+        std::string_view rest = end == std::string_view::npos ? std::string_view() : tag.substr(end + 1);
+        while (!rest.empty())
+        {
+            const size_t sep = rest.find_first_of("_-.");
+            const std::string_view sub = rest.substr(0, sep);
+            if (IEquals(sub, "hant"))
+                return Language::English;
+            if (IEquals(sub, "hans"))
+                hans = true;
+            else if (!hans && (IEquals(sub, "tw") || IEquals(sub, "hk") || IEquals(sub, "mo")))
+                return Language::English;
+            if (sep == std::string_view::npos)
+                break;
+            rest = rest.substr(sep + 1);
+        }
+        return Language::ChineseSimplified;
     }
 
     void SetSystemLocale(std::string_view tag)
@@ -512,17 +557,35 @@ namespace ui::i18n
 
     std::string_view Tr(std::string_view english)
     {
-        if (Current() == Language::English)
-            return english;
-        const auto& map = ZhHans();
-        if (auto it = map.find(english); it != map.end())
-            return it->second;
-        return english;
+        return Translate(english, Current());
     }
 
     const char* C(const char* english)
     {
-        return Tr(english).data();
+        // One stable copy per source string, holding both languages' text:
+        // a label ImGui keeps past this call (a popup's, a cached button's)
+        // stays valid, and a language switch returns a different but equally
+        // stable pointer instead of changing the text under an old one.
+        struct StableEntry
+        {
+            std::string english, chinese;
+        };
+        struct Hash
+        {
+            using is_transparent = void;
+            size_t operator()(std::string_view s) const noexcept { return std::hash<std::string_view>{}(s); }
+        };
+        static std::mutex mutex;
+        static std::unordered_map<std::string, StableEntry, Hash, std::equal_to<>> cache;
+        std::lock_guard lock(mutex);
+        auto it = cache.find(std::string_view(english));
+        if (it == cache.end())
+        {
+            StableEntry entry{ std::string(english),
+                std::string(Translate(english, Language::ChineseSimplified)) };
+            it = cache.emplace(std::string(english), std::move(entry)).first;
+        }
+        return (Current() == Language::ChineseSimplified ? it->second.chinese : it->second.english).c_str();
     }
 
     bool HasTranslation(std::string_view english)

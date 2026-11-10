@@ -1,12 +1,16 @@
 // Tests for settings::SetDeviceDefault (runtime/user/settings.cpp): a
 // device's own default before Load (an iPhone's Frame Rate) and after it
 // (a GPU's, known once its Vulkan device exists: Windows on an integrated
-// GPU). From the repo root:
+// GPU). Also the Game > Language row off the Asian disc: Chinese is not
+// offered there, and a stored value carried over from it reads as English
+// without being rewritten. From the repo root:
 //   clang++ -std=c++20 -O2 -Iruntime -isystem tools/XenonRecomp/thirdparty/tomlplusplus/include
 //     tests/settings_test.cpp runtime/user/settings.cpp runtime/platform/posix/file_io.cpp -o build/settings_test
 //   build/settings_test <scratch folder>
 // The scratch folder's settings.toml is written and read; nothing else.
 #include <ui/i18n.h>
+#include <game/language.h>
+#include <region/region.h>
 #include <user/settings.h>
 
 #include <cstdio>
@@ -150,6 +154,41 @@ int main(int argc, char** argv)
     }
 
     settings::Unsubscribe(listener);
+
+    // Chinese (9) is a row of the Asian executable's language table only.
+    // Off that disc the menu must not offer it, and a settings.toml carried
+    // over from that disc must read as English (what the game runs in)
+    // without losing its value: putting the Asian disc back restores it.
+    {
+        const settings::Option& language = settings::Info(Id::GameLanguage);
+        const double chinese = double(game::language::kChinese);
+        region::detail::g_release = region::Release::Usa;
+        const auto usa = settings::Entries(language);
+        CHECK(usa.size() == std::size(game::language::kLanguages) - 1, "off the Asian disc: %zu entries", usa.size());
+        bool offered = false;
+        for (const settings::EnumEntry& e : usa)
+            offered |= double(e.value) == chinese;
+        CHECK(!offered, "Chinese isn't offered off the Asian disc");
+        CHECK(settings::FormatValue(Id::GameLanguage, chinese) == "English", "a stored Chinese reads as English: %s",
+            settings::FormatValue(Id::GameLanguage, chinese).c_str());
+        CHECK(settings::Set(Id::GameLanguage, chinese) != settings::SetResult::Invalid, "the stored Chinese is kept");
+        CHECK(settings::GetStoredValue(Id::GameLanguage) == chinese, "the value survives");
+        CHECK(settings::FormatValue(Id::GameLanguage, settings::GetStoredValue(Id::GameLanguage)) == "English",
+            "the menu shows what the game runs");
+        double v = settings::GetStoredValue(Id::GameLanguage);
+        for (int i = 0; i < 30; i++)
+        {
+            v = settings::StepValue(Id::GameLanguage, v, 1);
+            CHECK(v != chinese, "a left/right press offered Chinese off the Asian disc");
+        }
+
+        region::detail::g_release = region::Release::NtscAsia;
+        CHECK(settings::Entries(language).size() == std::size(game::language::kLanguages), "the Asian disc offers every language");
+        CHECK(settings::FormatValue(Id::GameLanguage, chinese) == "Chinese", "Chinese on the Asian disc: %s",
+            settings::FormatValue(Id::GameLanguage, chinese).c_str());
+        region::detail::g_release = region::Release::Usa;
+    }
+
     std::filesystem::remove_all(dir, ec);
     printf("%s (%d failure%s)\n", g_failures ? "FAILED" : "all passed", g_failures, g_failures == 1 ? "" : "s");
     return g_failures ? 1 : 0;

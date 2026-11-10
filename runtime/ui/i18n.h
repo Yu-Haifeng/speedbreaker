@@ -36,7 +36,9 @@ namespace ui::i18n
     };
 
     // The language a locale tag names ("zh-CN", "zh_CN.UTF-8", "en-US"):
-    // Chinese for any "zh" language, English for everything else.
+    // Simplified Chinese for a zh tag without a traditional script or
+    // region, English for everything else (this build has no traditional
+    // Chinese translation; those players can choose 简体中文 themselves).
     Language FromLocaleTag(std::string_view tag);
 
     // What SDL reported at startup (ui.cpp): the preferred locale's language
@@ -55,10 +57,14 @@ namespace ui::i18n
     // "en" or "zh-Hans", for the log.
     const char* Tag();
 
-    // The selected language's text for an English source string.
+    // The selected language's text for an English source string. Both are
+    // views: the caller's string (when there is no translation) or a literal
+    // in the table.
     std::string_view Tr(std::string_view english);
-    // The same, null-terminated (the source keys and translations are
-    // literals): for ImGui calls that take a const char*.
+    // The same, null-terminated, for ImGui calls that take a const char*.
+    // Unlike Tr's view, the pointer stays valid for the process: one stable
+    // copy per source string and language is kept, so a dynamic key, or a
+    // language switch while a dialog holds a label, can't dangle.
     const char* C(const char* english);
 
     // A translated format string with its {} arguments filled in.

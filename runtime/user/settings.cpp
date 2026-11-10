@@ -3,6 +3,7 @@
 #include <user/paths.h>
 #include <user/version_check.h>  // MigrateShadowResolution: last_version against 0.2.4
 #include <game/language.h>  // Settings > Game > Language: the languages
+#include <region/region.h>  // Chinese is in the Asian executable's language table only
 
 #include <algorithm>
 #include <array>
@@ -125,6 +126,39 @@ namespace settings
                 entries[i] = { game::language::kLanguages[i].id, game::language::kLanguages[i].token, game::language::kLanguages[i].name };
             return entries;
         }();
+
+        // The same table without Chinese: what a release but the Asian one
+        // offers (its language table has no such row). Built by value, not by
+        // dropping the last entry, so reordering kLanguages can't bring the
+        // choice back.
+        constexpr auto kLanguageEntriesNoChinese = [] {
+            std::array<EnumEntry, std::size(kLanguageEntries)> entries {};
+            size_t count = 0;
+            for (const EnumEntry& e : kLanguageEntries)
+                if (e.value != game::language::kChinese)
+                    entries[count++] = e;
+            return std::pair { entries, count };
+        }();
+
+        // Chinese is a row of the Asian executable's language table only. A
+        // settings.toml carried over from that disc keeps its value, but on
+        // another release the game runs in English (game/language.cpp's
+        // Chosen). The menu must say the same and must not offer a choice
+        // that does nothing, while leaving the stored value alone so putting
+        // the Asian disc back restores its Chinese.
+        std::span<const EnumEntry> VisibleEntries(const Option& o)
+        {
+            if (o.id != Id::GameLanguage || region::IsNtscAsia())
+                return o.entries;
+            return { kLanguageEntriesNoChinese.first.data(), kLanguageEntriesNoChinese.second };
+        }
+
+        double ShownValue(Id id, double value)
+        {
+            return id == Id::GameLanguage && !region::IsNtscAsia() && value == double(game::language::kChinese)
+                ? double(game::language::kEnglish) : value;
+        }
+
         // The game folder can't be reached on iPhone and iPad, and the
         // installed files decide what a language gives (the note under the
         // row): the row isn't shown there.
@@ -552,7 +586,7 @@ namespace settings
             // Game
             { .id = Id::GameLanguage, .category = Category::Game, .type = Type::Enum, .apply = Apply::Restart, .hidden = kLanguageHidden,
               .table = "game", .key = "language", .label = "Language",
-              .description = "The language of the game's menus, race text and video subtitles: English (the USA disc's), French, German, Italian, Spanish, Dutch, Swedish, Danish, Polish, Finnish, or Chinese (the Asian disc's). The movies and the speech stay in English on the USA and Asian discs, as they have them. The European (PAL) Spanish disc has Spanish movies and speech, and starts in Spanish; another language there keeps them in Spanish. The Asian disc starts in Chinese; choose English there to switch its menus and subtitles to English.",
+              .description = "The language of the game's menus, race text and video subtitles: English (the USA disc's), French, German, Italian, Spanish, Dutch, Swedish, Danish, Polish and Finnish, and Chinese on the Asian disc, the only row that offers it. The movies and the speech stay in English on the USA and Asian discs, as they have them. The European (PAL) Spanish disc has Spanish movies and speech, and starts in Spanish; another language there keeps them in Spanish. The Asian disc starts in Chinese; choose English there to switch its menus and subtitles to English.",
               .env = "NFSMW_LANGUAGE", .defaultValue = double(game::language::kEnglish), .entries = kLanguageEntries },
         };
         static_assert(std::size(kOptions) == kCount, "one row per settings::Id");
@@ -1342,6 +1376,11 @@ namespace settings
         return kOptions[size_t(id)];
     }
 
+    std::span<const EnumEntry> Entries(const Option& o)
+    {
+        return VisibleEntries(o);
+    }
+
     const Option* Find(std::string_view table, std::string_view key)
     {
         for (const Option& o : kOptions)
@@ -1505,12 +1544,17 @@ namespace settings
             return delta == 0 ? (value != 0.0 ? 1.0 : 0.0) : value != 0.0 ? 0.0 : 1.0;
         case Type::Enum:
         {
+            // A left/right press moves through the entries this disc offers,
+            // from the value the menu shows (a carried-over Chinese reads as
+            // English off the Asian disc).
+            const std::span<const EnumEntry> entries = VisibleEntries(o);
+            const double shown = ShownValue(id, value);
             ptrdiff_t index = 0;
-            for (size_t e = 0; e < o.entries.size(); e++)
-                if (double(o.entries[e].value) == value)
+            for (size_t e = 0; e < entries.size(); e++)
+                if (double(entries[e].value) == shown)
                     index = ptrdiff_t(e);
-            index = std::clamp<ptrdiff_t>(index + delta, 0, ptrdiff_t(o.entries.size()) - 1);
-            return double(o.entries[size_t(index)].value);
+            index = std::clamp<ptrdiff_t>(index + delta, 0, ptrdiff_t(entries.size()) - 1);
+            return double(entries[size_t(index)].value);
         }
         case Type::Int:
         case Type::Float:
@@ -1541,7 +1585,7 @@ namespace settings
         case Type::Bool:
             return value != 0.0 ? "On" : "Off";
         case Type::Enum:
-            if (const EnumEntry* e = FindEntry(o, value))
+            if (const EnumEntry* e = FindEntry(o, ShownValue(id, value)))
                 return e->label;
             return "?";
         case Type::Key:

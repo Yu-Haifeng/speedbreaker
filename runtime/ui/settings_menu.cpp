@@ -153,7 +153,7 @@ namespace ui
                     for (double th : theirs)
                         shared |= m != double(settings::keynames::kNone) && m == th;
                 if (shared)
-                    text += (text.empty() ? "" : i18n::C(", ")) + std::string(i18n::Tr(settings::Info(other.id).label));
+                    text += (text.empty() ? "" : ", ") + std::string(i18n::Tr(settings::Info(other.id).label));
             }
             return text;
         }
@@ -205,7 +205,7 @@ namespace ui
                 measure(1);
                 break;
             case settings::Type::Enum:
-                for (const auto& e : o.entries)
+                for (const auto& e : settings::Entries(o))
                     measure(e.value);
                 break;
             case settings::Type::Key:
@@ -241,8 +241,9 @@ namespace ui
         {
             double next = settings::StepValue(o.id, stored, delta);
             // A (or a click) on an enum at its last entry starts over.
-            if (wrap && next == stored && o.type == settings::Type::Enum && !o.entries.empty())
-                next = delta > 0 ? o.entries.front().value : o.entries.back().value;
+            const auto entries = settings::Entries(o);
+            if (wrap && next == stored && o.type == settings::Type::Enum && !entries.empty())
+                next = delta > 0 ? entries.front().value : entries.back().value;
             if (next != stored)
                 LogChange(o, stored, settings::Set(o.id, next));
         }
