@@ -58,9 +58,9 @@ namespace
 
     void Report(uint8_t* base)
     {
-        const uint32_t stepper = PPC_LOAD_U32(0x82A2CB6C);
+        const uint32_t stepper = PPC_LOAD_U32(region::Addr(0x82A2CB6C));
         const uint32_t steps = stepper ? PPC_LOAD_U32(stepper + 40) : 0;
-        const uint32_t rtf = PPC_LOAD_U32(0x828FD86C);
+        const uint32_t rtf = PPC_LOAD_U32(region::Addr(0x828FD86C));
         uint64_t n[Count], views[32];
         for (int i = 0; i < Count; i++)
             n[i] = s_n[i].load(std::memory_order_relaxed);
@@ -137,12 +137,12 @@ SB_HOOK(sub_82223220)
     Bump(Exposure);
     const bool log = s_exposureLeft.load() > 0 &&
         std::chrono::duration<double>(std::chrono::steady_clock::now() - s_exposureT0).count() >= s_exposureFrom;
-    const float before = LoadF(base, 0x82908AB8), measured = LoadF(base, 0x82908ABC);
+    const float before = LoadF(base, region::Addr(0x82908AB8)), measured = LoadF(base, region::Addr(0x82908ABC));
     const bool between = hfr::InBetween();
     SB_ORIGINAL(sub_82223220)(ctx, base);
     if (log && s_exposureLeft.fetch_sub(1) > 0)
         fprintf(stderr, "[hfrexpo] %s adapted %.6f -> %.6f measured %.6f\n", between ? "between" : "real", before,
-            LoadF(base, 0x82908AB8), measured);
+            LoadF(base, region::Addr(0x82908AB8)), measured);
 }
 HFR_COUNT(sub_825987E0, Present)
 HFR_COUNT(sub_824E6220, Flares)
@@ -178,7 +178,7 @@ namespace
         if (PPC_LOAD_U32(view + 4) != 1)
             return;
         s_viewLog.left--;
-        const uint32_t cam = PPC_LOAD_U32(view + 64), stepper = PPC_LOAD_U32(0x82A2CB6C);
+        const uint32_t cam = PPC_LOAD_U32(view + 64), stepper = PPC_LOAD_U32(region::Addr(0x82A2CB6C));
         std::string m;
         for (int i = 0; cam && i < 16; i++)
         {
@@ -189,7 +189,7 @@ namespace
         }
         // The player's car (item 0 of the vehicle render list at 0x82C84D38): its matrix's position row as drawn.
         std::string car = "-";
-        const uint32_t items = PPC_LOAD_U32(0x82C84D3C), count = PPC_LOAD_U32(0x82C84D44);
+        const uint32_t items = PPC_LOAD_U32(region::Addr(0x82C84D3C)), count = PPC_LOAD_U32(region::Addr(0x82C84D44));
         if (items && count)
             if (const uint32_t object = PPC_LOAD_U32(items))
             {
@@ -202,7 +202,8 @@ namespace
                 car = std::format("{:08X} {:.4f},{:.4f},{:.4f}", object, p[0], p[1], p[2]);
             }
         fprintf(stderr, "[hfrview] steps %u rtf %u entry %llu %s fov %u cam %08X M %s car %s\n", stepper ? PPC_LOAD_U32(stepper + 40) : 0,
-            PPC_LOAD_U32(0x828FD86C), (unsigned long long)s_n[RenderEntry].load(), hfr::InBetween() ? "between" : "real",
+            PPC_LOAD_U32(region::Addr(0x828FD86C)), (unsigned long long)s_n[RenderEntry].load(),
+            hfr::InBetween() ? "between" : "real",
             cam ? unsigned(PPC_LOAD_U16(cam + 196)) : 0u, cam, m.c_str(), car.c_str());
     }
 }

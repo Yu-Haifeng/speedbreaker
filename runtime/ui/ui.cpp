@@ -2,6 +2,7 @@
 #include <stdafx.h>
 #include "ui.h"
 #include "cursor_idle.h"
+#include "i18n.h"
 
 #include <hid/input.h>
 #include <hid/wheel.h>       // the settings chord and the menus from a steering wheel
@@ -44,6 +45,53 @@ namespace ui
         // needs its own (OS/2 sCapHeight), or CentredTextTop is off by up to
         // a pixel.
         constexpr float kCapHeight = 1456.0f / 2400.0f;
+
+        // The overlay's Chinese text: the embedded Roboto has no CJK glyphs,
+        // so merge a system font's common simplified Chinese set on first use.
+        // ImGui 1.92's dynamic atlas uploads the new glyphs on the next frame.
+        bool s_chineseFontChecked = false;
+        void AddChineseFont(ImGuiIO& io)
+        {
+            if (s_chineseFontChecked)
+                return;
+            s_chineseFontChecked = true;
+            static constexpr const char* kFonts[] = {
+#if defined(__APPLE__)
+                "/System/Library/Fonts/PingFang.ttc",
+                "/System/Library/Fonts/LanguageSupport/PingFang.ttc",
+                "/System/Library/Fonts/STHeiti Medium.ttc",
+                "/System/Library/Fonts/Hiragino Sans GB.ttc",
+                "/System/Library/Fonts/Supplemental/Songti.ttc",
+#elif defined(_WIN32)
+                "C:\\Windows\\Fonts\\msyh.ttc",
+                "C:\\Windows\\Fonts\\msyh.ttf",
+                "C:\\Windows\\Fonts\\simhei.ttf",
+#else
+                "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+                "/usr/share/fonts/truetype/arphic/uming.ttc",
+#endif
+            };
+            for (const char* path : kFonts)
+            {
+                std::error_code ec;
+                if (!std::filesystem::is_regular_file(path, ec))
+                    continue;
+                ImFontConfig config;
+                config.MergeMode = true;
+                config.FontDataOwnedByAtlas = true;
+                config.GlyphOffset = ImVec2(0, 0);
+                if (io.Fonts->AddFontFromFileTTF(path, kFontSize, &config, io.Fonts->GetGlyphRangesChineseSimplifiedCommon()))
+                {
+                    fprintf(stderr, "[ui] Chinese font: %s\n", path);
+                    return;
+                }
+            }
+            fprintf(stderr, "[ui] no system Chinese font found: Chinese overlay text needs one\n");
+        }
 
         SDL_Window* s_window = nullptr;
         VulkanTarget s_target{};
@@ -109,7 +157,7 @@ namespace ui
                 // (A window-local x: the text wraps where the window's
                 // right padding starts at its widest.)
                 ImGui::PushTextWrapPos(maxWidth - kSpaceL * s);
-                ImGui::TextUnformatted(text.c_str());
+                ImGui::TextUnformatted(i18n::C(text.c_str()));
                 ImGui::PopTextWrapPos();
             }
             ImGui::End();
@@ -680,6 +728,17 @@ namespace ui
             return true;
         s_window = window;
         s_target = target;
+        if (int count = 0; SDL_Locale** locales = SDL_GetPreferredLocales(&count))
+        {
+            if (count > 0 && locales[0]->language)
+            {
+                std::string tag = locales[0]->language;
+                if (locales[0]->country)
+                    tag += std::format("-{}", locales[0]->country);
+                i18n::SetSystemLocale(tag);
+            }
+            SDL_free(locales);
+        }
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
         ImGuiIO& io = ImGui::GetIO();
@@ -753,6 +812,7 @@ namespace ui
         ImGui::DestroyContext();
         s_ready = false;
         s_rendererReady = false;
+        s_chineseFontChecked = false;
         s_modal = nullptr;
         s_heldPress.clear();
         UpdateCapture();
@@ -1070,6 +1130,12 @@ namespace ui
         s_frameBuilt = false;
         if (!s_ready)
             return false;
+        // The overlay's own language: System, English, or Simplified
+        // Chinese (Settings > Advanced > Overlay Language). Live: a change
+        // applies as soon as the next frame is drawn.
+        i18n::Use(settings::GetInt(settings::Id::OverlayLanguage));
+        if (i18n::Current() == i18n::Language::ChineseSimplified)
+            AddChineseFont(ImGui::GetIO());
         UpdateCursor();  // a menu opened or closed by this frame's events
         // A touch press held back for a three-finger tap goes to ImGui once
         // a second finger can no longer land in time (a finger resting on a

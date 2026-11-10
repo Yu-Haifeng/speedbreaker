@@ -257,9 +257,10 @@ namespace install
     // installer offers the existing install folder by default, so installing
     // the PAL disc there would delete a USA install, and the other way round.
     // So the game goes beside it instead, in RegionFolder: "game PAL-ES" next
-    // to "game", "game USA" next to a PAL "game". The record then points the
-    // game at the new install; the other stays where it is, whole. A
-    // same-region install is replaced as before.
+    // to "game", "game-ntsc-asia" for the Asian disc, and "game USA" next to
+    // a PAL "game". The record then points the game at the new install; the
+    // other stays where it is, whole. A same-region install is replaced as
+    // before.
     struct RegionKeep
     {
         std::filesystem::path gameDir;      // where the game goes: the folder asked for, or RegionFolder's
@@ -268,7 +269,8 @@ namespace install
     };
 
     // Pure: the folder beside `gameDir` for `incoming`'s region: its name
-    // and the region's id in capitals ("game" -> "game PAL-ES"). A trailing
+    // and the region's id in capitals ("game" -> "game PAL-ES"), except the
+    // Asian install's lowercase hyphenated "game-ntsc-asia". A trailing
     // separator doesn't count.
     std::filesystem::path RegionFolder(const std::filesystem::path& gameDir, const Manifest& incoming);
 

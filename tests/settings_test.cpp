@@ -6,6 +6,7 @@
 //     tests/settings_test.cpp runtime/user/settings.cpp runtime/platform/posix/file_io.cpp -o build/settings_test
 //   build/settings_test <scratch folder>
 // The scratch folder's settings.toml is written and read; nothing else.
+#include <ui/i18n.h>
 #include <user/settings.h>
 
 #include <cstdio>
@@ -52,10 +53,31 @@ int main(int argc, char** argv)
     std::filesystem::create_directories(dir);
     const std::filesystem::path file = dir / "settings.toml";
 
+    // Every overlay row and its help have a Simplified Chinese translation:
+    // the menu falls back to English, but a missing one here is a forgotten
+    // string in ui/i18n.cpp.
+    for (const settings::Option& o : settings::Options())
+    {
+        CHECK(ui::i18n::HasTranslation(o.label), "%s: no Chinese label", o.label);
+        CHECK(ui::i18n::HasTranslation(o.description), "%s: no Chinese description", o.label);
+    }
+
     // The options used here come from the file and these defaults only.
     for (const settings::Option& o : settings::Options())
         SetEnv(o.env, nullptr);
     SetEnv("NFSMW_TEXTURE_MIPS", "1");  // Mipmaps: an environment override
+
+    // Overlay Language: System by default, live, and its three values.
+    {
+        const settings::Option& o = settings::Info(Id::OverlayLanguage);
+        CHECK(o.type == settings::Type::Enum && o.apply == settings::Apply::Live, "Overlay Language: a live enum");
+        CHECK(o.defaultValue == 0 && o.entries.size() == 3, "System by default (%zu entries)", o.entries.size());
+        CHECK(std::string(o.entries[0].token) == "system" && std::string(o.entries[1].token) == "english"
+            && std::string(o.entries[2].token) == "chinese", "its tokens");
+        CHECK(std::string(o.env) == "NFSMW_OVERLAY_LANGUAGE", "its environment");
+        CHECK(settings::FormatValue(Id::OverlayLanguage, 2) == "简体中文", "%s",
+            settings::FormatValue(Id::OverlayLanguage, 2).c_str());
+    }
 
     // Before Load, as on an iPhone: what a file without the option gives.
     settings::SetDeviceDefault(Id::FrameRate, 30, "test: before Load");

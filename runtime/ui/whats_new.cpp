@@ -9,6 +9,7 @@
 // ran last lives in settings.toml, so it shows once.
 #include <stdafx.h>
 #include "ui.h"
+#include "i18n.h"
 
 #include <user/version_check.h>
 
@@ -100,10 +101,10 @@ namespace ui
             ImGui::Spacing();
             if (note.firstFrame)
                 ImGui::SetKeyboardFocusHere();
-            bool close = ImGui::Button("OK");
+            bool close = ImGui::Button(i18n::C("OK"));
             ImGui::SameLine();
             {
-                const char* legend = "A or B: close";
+                const char* legend = i18n::C("A or B: close");
                 float w = ImGui::CalcTextSize(legend).x;
                 ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - w));
                 ImGui::TextDisabled("%s", legend);
@@ -133,7 +134,7 @@ namespace ui
             return;
         }
         auto note = std::make_shared<Note>();
-        note->title = "Updated to v" + std::string(version);
+        note->title = i18n::Format("Updated to v{}", version);
         note->lines = version::ParseNote(WhatsNewEntry());
         if (note->lines.empty())
             return;

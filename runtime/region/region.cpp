@@ -27,6 +27,13 @@ namespace pal_de
     extern const uint64_t kImageBase, kImageSize, kCodeBase, kCodeSize;
 }
 #endif
+#if SB_NTSC_ASIA
+namespace ntsc_asia
+{
+    extern PPCFuncMapping PPCFuncMappings[];
+    extern const uint64_t kImageBase, kImageSize, kCodeBase, kCodeSize;
+}
+#endif
 
 namespace region
 {
@@ -52,6 +59,12 @@ namespace region
         constexpr size_t kPalDeCount = 0;
 #endif
 
+        constexpr AddressPair s_ntscAsia[] = {
+#define SB_NTSC_ASIA_ADDRESS(usa, regional) { usa, regional },
+#include "ntsc_asia_addresses.inc"
+#undef SB_NTSC_ASIA_ADDRESS
+        };
+
         template <size_t N>
         constexpr bool Sorted(const AddressPair (&table)[N])
         {
@@ -62,8 +75,9 @@ namespace region
         }
         static_assert(Sorted(s_palEs), "pal_es_addresses.inc: not sorted by USA address, or a duplicate");
         static_assert(Sorted(s_palDe), "pal_de_addresses.inc: not sorted by USA address, or a duplicate");
+        static_assert(Sorted(s_ntscAsia), "ntsc_asia_addresses.inc: not sorted by USA address, or a duplicate");
 
-        // A PAL release's code, as scripts/region_ppc.py namespaced it.
+        // A regional release's code, as scripts/region_ppc.py namespaced it.
         struct Code
         {
             const PPCFuncMapping* mappings;
@@ -86,6 +100,14 @@ namespace region
                 return true;
             }
 #endif
+#if SB_NTSC_ASIA
+            if (release == Release::NtscAsia)
+            {
+                code = { ntsc_asia::PPCFuncMappings, ntsc_asia::kImageBase, ntsc_asia::kImageSize, ntsc_asia::kCodeBase,
+                    ntsc_asia::kCodeSize };
+                return true;
+            }
+#endif
             (void)release;
             (void)code;
             return false;
@@ -96,7 +118,7 @@ namespace region
             const AddressPair* end = table + count;
             const AddressPair* it = std::lower_bound(table, end, usa, [](const AddressPair& p, uint32_t a) { return p.usa < a; });
             if (it != end && it->usa == usa)
-                return it->pal;
+                return it->regional;
             // Not one the sources name (the table is complete for those):
             // say so once per address.
             static std::mutex mutex;
@@ -110,10 +132,12 @@ namespace region
 
     namespace detail
     {
-        uint32_t PalAddr(uint32_t usa)
+        uint32_t RegionalAddr(uint32_t usa)
         {
             if (g_release == Release::PalDe)
                 return Lookup(s_palDe, kPalDeCount, usa, "PAL (German)");
+            if (g_release == Release::NtscAsia)
+                return Lookup(s_ntscAsia, std::size(s_ntscAsia), usa, "NTSC (Asia)");
             return Lookup(s_palEs, std::size(s_palEs), usa, "PAL (Spanish)");
         }
     }
@@ -130,6 +154,7 @@ namespace region
         {
         case Release::PalEs: return "pal-es";
         case Release::PalDe: return "pal-de";
+        case Release::NtscAsia: return "ntsc-asia";
         default: return "usa";
         }
     }
@@ -140,6 +165,7 @@ namespace region
         {
         case Release::PalEs: return "Europe (PAL, Spanish)";
         case Release::PalDe: return "Europe (PAL, German)";
+        case Release::NtscAsia: return "Asia (NTSC)";
         default: return "USA";
         }
     }
@@ -152,6 +178,8 @@ namespace region
             release = Release::PalEs;
         else if (id == "pal-de")
             release = Release::PalDe;
+        else if (id == "ntsc-asia")
+            release = Release::NtscAsia;
         else
             return false;
         return true;
@@ -213,5 +241,11 @@ namespace region
     {
         count = kPalDeCount;
         return s_palDe;
+    }
+
+    const AddressPair* NtscAsiaTable(size_t& count)
+    {
+        count = std::size(s_ntscAsia);
+        return s_ntscAsia;
     }
 }

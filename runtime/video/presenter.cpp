@@ -35,6 +35,7 @@
 #include "fsr1.h"
 #include "upscale.h"
 #include <ui/ui.h>
+#include <ui/i18n.h>
 #if defined(__APPLE__) && TARGET_OS_IOS
 #include <platform/ios_ui.h>
 #endif
@@ -5014,7 +5015,7 @@ void main()
             case Notice::Verdict::Show:
                 break;
             }
-            const bool shown = ui::ShowNotice(Notice::kTitle, Notice::Text(in), [key](const char*) {
+            const bool shown = ui::ShowNotice(Notice::kTitle, ui::i18n::Format(Notice::Pattern(in), Notice::Key(in.modeHz)), [key](const char*) {
                 if (settings::RecordRefreshNotice(key))
                     fprintf(stderr, "[video] refresh notice for %d Hz: recorded in settings.toml (not shown again for it)\n", key);
             });

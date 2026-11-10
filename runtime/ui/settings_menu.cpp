@@ -14,6 +14,7 @@
 // update dialog with it.
 #include <stdafx.h>
 #include "ui.h"
+#include "i18n.h"
 #include "quit_game.h"
 
 #include <game/language.h>  // the Language row's note: what the installed files give
@@ -117,7 +118,7 @@ namespace ui
         std::string KeyLabel(double stored)
         {
             if (stored == double(settings::keynames::kNone))
-                return kNoKey;
+                return i18n::C(kNoKey);
             if (!(stored >= 1 && stored < double(SDL_SCANCODE_COUNT)))
                 return "?";
             SDL_Scancode sc = SDL_Scancode(int(stored));
@@ -133,7 +134,7 @@ namespace ui
         std::string RefusedName(SDL_Scancode sc)
         {
             std::string name = KeyLabel(double(sc));
-            return name == "?" || name == kNoKey ? "That key" : name;
+            return name == "?" || name == i18n::C(kNoKey) ? i18n::C("That key") : name;
         }
 
         // The other controls that have any of this row's keys ("D-pad
@@ -152,7 +153,7 @@ namespace ui
                     for (double th : theirs)
                         shared |= m != double(settings::keynames::kNone) && m == th;
                 if (shared)
-                    text += (text.empty() ? "" : ", ") + std::string(settings::Info(other.id).label);
+                    text += (text.empty() ? "" : i18n::C(", ")) + std::string(i18n::Tr(settings::Info(other.id).label));
             }
             return text;
         }
@@ -161,7 +162,7 @@ namespace ui
         // a key" or "none"; a row has two and a gap.
         float KeyCellWidth()
         {
-            float width = std::max(ImGui::CalcTextSize(kPressAKey).x, ImGui::CalcTextSize(kNoKey).x);
+            float width = std::max(ImGui::CalcTextSize(i18n::C(kPressAKey)).x, ImGui::CalcTextSize(i18n::C(kNoKey)).x);
             for (const auto& o : settings::Options())
                 if (o.type == settings::Type::Key)
                     width = std::max(width, ImGui::CalcTextSize(KeyLabel(settings::GetStoredValue(o.id)).c_str()).x);
@@ -180,8 +181,9 @@ namespace ui
         // and Auto what it picked. No window: the table's.
         std::string ValueText(const settings::Option& o, double value)
         {
-            std::string text = settings::FormatValue(o.id, value);
-            if (o.id == Id::InternalResolution && text != "?")
+            const std::string raw = settings::FormatValue(o.id, value);
+            std::string text(i18n::Tr(raw));
+            if (o.id == Id::InternalResolution && raw != "?")
             {
                 uint32_t regionW = 0, regionH = 0;
                 video::FrameRegion(regionW, regionH);
@@ -310,11 +312,12 @@ namespace ui
             bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenOverlappedByItem);
             if (focused || (hovered && s_described == Id::Count))
                 s_described = o.id;
-            const float mid = RowLabel(labelPos, o.label);
+            const char* label = i18n::C(o.label);
+            const float mid = RowLabel(labelPos, label);
 
             // Markers after the label: set by the environment, waits for a restart.
             {
-                float x = labelPos.x + ImGui::CalcTextSize(o.label).x + 10.0f * s;
+                float x = labelPos.x + ImGui::CalcTextSize(label).x + 10.0f * s;
                 ImDrawList* draw = ImGui::GetWindowDrawList();
                 auto marker = [&](const char* text, ImU32 color) {
                     ImGui::PushFont(nullptr, 15.0f);
@@ -421,7 +424,7 @@ namespace ui
             bool focused = ImGui::IsItemFocused();
             if (focused || (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenOverlappedByItem) && s_described == Id::Count))
                 s_described = e.id;
-            const float mid = RowLabel(labelPos, o.label);
+            const float mid = RowLabel(labelPos, i18n::C(o.label));
 
             if (focused && s_slotRow != e.id)
             {
@@ -477,7 +480,7 @@ namespace ui
                 const bool waitingHere = s_waiting == ids[i];
                 const bool chosen = focused && s_slot == i;
                 const double stored = settings::GetStoredValue(ids[i]);
-                const std::string text = waitingHere ? kPressAKey : KeyLabel(stored);
+                const std::string text = waitingHere ? i18n::C(kPressAKey) : KeyLabel(stored);
                 const ImVec2 size = ImGui::CalcTextSize(text.c_str());
                 ImU32 color;
                 if (waitingHere)
@@ -502,10 +505,10 @@ namespace ui
         {
             switch (report::GetBugReportState())
             {
-            case report::BugReportState::Saving: return "Saving...";
-            case report::BugReportState::Saved: return "Saved";
-            case report::BugReportState::Failed: return "Failed";
-            default: return "Save";
+            case report::BugReportState::Saving: return i18n::C("Saving...");
+            case report::BugReportState::Saved: return i18n::C("Saved");
+            case report::BugReportState::Failed: return i18n::C("Failed");
+            default: return i18n::C("Save");
             }
         }
 
@@ -561,14 +564,14 @@ namespace ui
             const hid::wheel::Assignment axes = hid::wheel::Axes();
             const hid::wheel::Reading now = hid::wheel::Last();
             std::string text = axes.steer < 0
-                ? "Steering: none"
-                : std::format("Steering axis {}{}: {:+.0f}%", axes.steer,
-                      settings::GetBool(Id::InvertSteering) ? " inverted" : "", double(now.steer) * 100.0);
+                ? i18n::Format("Steering: none")
+                : i18n::Format("Steering axis {}{}: {:+.0f}%", axes.steer,
+                      settings::GetBool(Id::InvertSteering) ? i18n::Tr(" inverted") : std::string_view(), double(now.steer) * 100.0);
             struct Row { const char* name; int axis; float value; };
             for (const Row& row : { Row{ "Throttle", axes.throttle, now.throttle }, Row{ "Brake", axes.brake, now.brake },
                                     Row{ "Clutch", axes.clutch, now.clutch } })
-                text += row.axis < 0 ? std::format("   {}: none", row.name)
-                                     : std::format("   {} {}: {:.0f}%", row.name, row.axis, double(row.value) * 100.0);
+                text += row.axis < 0 ? i18n::Format("   {}: none", i18n::Tr(row.name))
+                                     : i18n::Format("   {} {}: {:.0f}%", i18n::Tr(row.name), row.axis, double(row.value) * 100.0);
             return text;
         }
 
@@ -579,8 +582,8 @@ namespace ui
             // names are too long for it, and the help line has them.
             const std::string value = calibrating
                 ? std::format("{}/{}", size_t(hid::wheel::CalibratingStep()) + 1, hid::wheel::kStepCount)
-                : std::string("Start");
-            const bool activated = ActionRow("wheel-calibrate", "Calibrate", value.c_str(), valueWidth, s_describedCal);
+                : std::string(i18n::C("Start"));
+            const bool activated = ActionRow("wheel-calibrate", i18n::C("Calibrate"), value.c_str(), valueWidth, s_describedCal);
             if (!calibrating)
             {
                 if (activated)
@@ -604,14 +607,14 @@ namespace ui
         // A (or a click) saves the report.
         void BugReportRow(float valueWidth)
         {
-            if (ActionRow("bug-report", "Save Bug Report", BugReportValue(), valueWidth, s_describedBugReport))
+            if (ActionRow("bug-report", i18n::C("Save Bug Report"), BugReportValue(), valueWidth, s_describedBugReport))
                 report::SaveBugReport();
         }
 
         // A (or a click) asks GitHub, and the dialog shows the answer.
         void UpdateRow(float valueWidth)
         {
-            if (ActionRow("check-updates", "Check for Updates", UpdateRowValue(), valueWidth, s_describedUpdate))
+            if (ActionRow("check-updates", i18n::C("Check for Updates"), UpdateRowValue(), valueWidth, s_describedUpdate))
                 OpenUpdateDialog();
         }
 
@@ -645,13 +648,13 @@ namespace ui
                 return false;
             }
             s_quit.Shown();
-            ImGui::TextUnformatted("Quit SpeedBreaker? Progress since your last save will be lost.");
+            ImGui::TextUnformatted(i18n::C("Quit SpeedBreaker? Progress since your last save will be lost."));
             ImGui::Spacing();
-            const bool quitPressed = ImGui::Button("Quit");
+            const bool quitPressed = ImGui::Button(i18n::C("Quit"));
             ImGui::SameLine();
             if (s_quit.TakeFocus())
                 ImGui::SetKeyboardFocusHere();  // Cancel (quit::Prompt::kDefaultFocus)
-            const bool cancelPressed = ImGui::Button("Cancel");
+            const bool cancelPressed = ImGui::Button(i18n::C("Cancel"));
             ImGui::SetItemDefaultFocus();
             quit::Outcome outcome = quit::Outcome::None;
             const char* how = "";
@@ -703,11 +706,11 @@ namespace ui
             if (s_describedBugReport)
             {
 #if defined(__APPLE__) && TARGET_OS_IOS
-                ImGui::TextWrapped("Saves the recent logs, crash and hang reports, your settings, a system summary and a screenshot "
-                                   "in one .zip in the Files app (SpeedBreaker folder). Nothing is uploaded: send the file yourself.");
+                ImGui::TextWrapped("%s", i18n::C("Saves the recent logs, crash and hang reports, your settings, a system summary "
+                    "and a screenshot in one .zip in the Files app (SpeedBreaker folder). Nothing is uploaded: send the file yourself."));
 #else
-                ImGui::TextWrapped("Saves the recent logs, crash and hang reports, your settings, a system summary and a screenshot "
-                                   "in one .zip on the Desktop (or the game's data folder). Nothing is uploaded: send the file yourself.");
+                ImGui::TextWrapped("%s", i18n::C("Saves the recent logs, crash and hang reports, your settings, a system summary "
+                    "and a screenshot in one .zip on the Desktop (or the game's data folder). Nothing is uploaded: send the file yourself."));
 #endif
                 std::string message = report::BugReportMessage();
                 const bool saved = report::GetBugReportState() == report::BugReportState::Saved;
@@ -742,26 +745,27 @@ namespace ui
                 {
                     const hid::wheel::Step step = hid::wheel::CalibratingStep();
                     const hid::wheel::Candidate c = hid::wheel::Watch();
-                    const char* name = hid::wheel::StepName(step);
+                    const char* name = i18n::C(hid::wheel::StepName(step));
                     PushAccentText();
                     if (!c.found)
-                        ImGui::TextWrapped("%zu of %zu, %s. %s%s", size_t(step) + 1, hid::wheel::kStepCount, name,
-                            hid::wheel::StepAsk(step), hid::wheel::StepIsButton(step) ? "." : ", then A to keep it.");
+                        ImGui::TextUnformatted(i18n::Format("{} of {}, {}. {}{}", size_t(step) + 1, hid::wheel::kStepCount,
+                            name, i18n::Tr(hid::wheel::StepAsk(step)),
+                            hid::wheel::StepIsButton(step) ? i18n::C(".") : i18n::C(", then A to keep it.")).c_str());
                     else if (hid::wheel::StepIsButton(step))
-                        ImGui::TextWrapped("%s: button %d. A, or the same button again, keeps it; another button replaces it.",
-                            name, c.button);
+                        ImGui::TextUnformatted(i18n::Format("{}: button {}. A, or the same button again, keeps it; another button replaces it.",
+                            name, c.button).c_str());
                     else
-                        ImGui::TextWrapped("%s: axis %d, %+d to %+d, %.0f%% of its travel. A keeps it.", name, c.axis, int(c.rest),
-                            int(c.full), double(c.moved) * 100.0);
+                        ImGui::TextUnformatted(i18n::Format("{}: axis {}, {:+d} to {:+d}, {:.0f}% of its travel. A keeps it.", name,
+                            int(c.axis), int(c.rest), int(c.full), double(c.moved) * 100.0).c_str());
                     PopAccentText();
-                    ImGui::TextDisabled(hid::wheel::StepIsButton(step)
+                    ImGui::TextDisabled("%s", i18n::C(hid::wheel::StepIsButton(step)
                         ? "D-pad right skips, left goes back, down stops (keeping what's set). Esc stops too."
-                        : "D-pad right skips, left goes back; B, Esc or D-pad down stops (keeping what's set).");
+                        : "D-pad right skips, left goes back; B, Esc or D-pad down stops (keeping what's set)."));
                 }
                 else
-                    ImGui::TextWrapped("Teaches the game your wheel: both ends of its turn, each pedal, and a button for "
-                                       "every control, one at a time. A keeps what each step saw; the D-pad skips a step "
-                                       "or goes back. Only a wheel that comes out wrong needs this.");
+                    ImGui::TextWrapped("%s", i18n::C("Teaches the game your wheel: both ends of its turn, each pedal, and a button "
+                        "for every control, one at a time. A keeps what each step saw; the D-pad skips a step or goes back. Only "
+                        "a wheel that comes out wrong needs this."));
                 ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
                 ImGui::TextWrapped("%s", WheelReadings().c_str());
                 ImGui::PopStyleColor();
@@ -781,34 +785,36 @@ namespace ui
                 {
                     PushAccentText();
                     if (s_refused != SDL_SCANCODE_UNKNOWN)
-                        ImGui::Text("%s can't be used here. Press another key; Esc or B cancels.", RefusedName(s_refused).c_str());
+                        ImGui::TextUnformatted(i18n::Format("{} can't be used here. Press another key; Esc or B cancels.",
+                            RefusedName(s_refused)).c_str());
                     else
-                        ImGui::Text("Press the key for %s. Esc or B cancels.", o.label);
+                        ImGui::TextUnformatted(i18n::Format("Press the key for {}. Esc or B cancels.", i18n::Tr(o.label)).c_str());
                     PopAccentText();
                     ImGui::TextDisabled(" ");
                     return;
                 }
-                ImGui::TextWrapped("%s", o.description);
+                ImGui::TextWrapped("%s", i18n::C(o.description));
                 // The keyboard's keys for what the legend names in
                 // controller terms (Y, X); and a key on several controls is
                 // fine (the defaults share the arrows), but say which, in
                 // case it wasn't meant.
                 std::string also = SharedWith(e);
-                ImGui::TextDisabled("Enter sets the key, Backspace clears it, Delete restores the row.%s%s%s",
-                    also.empty() ? "" : "  Also: ", also.c_str(), also.empty() ? "" : ".");
+                ImGui::TextUnformatted(i18n::Format("Enter sets the key, Backspace clears it, Delete restores the row.{}{}{}",
+                    also.empty() ? "" : i18n::C("  Also: "), also, also.empty() ? "" : i18n::C(".")).c_str());
                 return;
             }
             if (o.id == Id::Fullscreen && video::FullscreenLocked())
             {
-                ImGui::TextDisabled("Always on in Game Mode: Steam sets the resolution (Properties > Game Resolution).");
+                ImGui::TextDisabled("%s", i18n::C("Always on in Game Mode: Steam sets the resolution (Properties > Game Resolution)."));
                 return;
             }
             // The window's own fullscreen button (or the system) changed it for
             // this session; the setting still decides how the game starts.
             if (o.id == Id::Fullscreen && video::FullscreenWindowDiffers() && !settings::EnvOverride(o.id))
             {
-                ImGui::TextDisabled("The window is %s for now. The game starts %s, as set here.",
-                    video::WindowFullscreen() ? "fullscreen" : "windowed", settings::GetBool(Id::Fullscreen) ? "fullscreen" : "windowed");
+                ImGui::TextUnformatted(i18n::Format("The window is {} for now. The game starts {}, as set here.",
+                    i18n::Tr(video::WindowFullscreen() ? "fullscreen" : "windowed"),
+                    i18n::Tr(settings::GetBool(Id::Fullscreen) ? "fullscreen" : "windowed")).c_str());
                 return;
             }
             // Language: what the installed files give the language chosen
@@ -822,38 +828,38 @@ namespace ui
                 ImGui::TextWrapped("%s", game::language::MenuNote(int32_t(value)).c_str());
                 ImGui::PopStyleColor();
                 if (env)
-                    ImGui::TextDisabled("%s sets this for this run: %s. The choice here is saved for later runs.", env,
-                        settings::FormatValue(o.id, value).c_str());
+                    ImGui::TextUnformatted(i18n::Format("{} sets this for this run: {}. The choice here is saved for later runs.",
+                        env, i18n::Tr(settings::FormatValue(o.id, value))).c_str());
                 else if (settings::RestartPending(o.id))
                 {
                     PushAccentText();
-                    ImGui::TextUnformatted("Takes effect the next time the game starts.");
+                    ImGui::TextUnformatted(i18n::C("Takes effect the next time the game starts."));
                     PopAccentText();
                 }
                 else
-                    ImGui::TextDisabled("Changes take effect the next time the game starts.");
+                    ImGui::TextDisabled("%s", i18n::C("Changes take effect the next time the game starts."));
                 return;
             }
             // The experiment's finer scale wins over Screen Resolution's.
             if (float scale = video::PresentScaleOverride(); o.id == Id::PresentScale && scale > 0.0f)
                 ImGui::TextDisabled("NFSMW_PRESENT_SCALE sets %.2f for this run.", double(scale));
             else if (const char* env = settings::EnvOverride(o.id))
-                ImGui::TextDisabled("%s sets this for this run: %s. The choice here is saved for later runs.", env,
-                    ValueText(o, settings::GetValue(o.id)).c_str());
+                ImGui::TextUnformatted(i18n::Format("{} sets this for this run: {}. The choice here is saved for later runs.",
+                    env, ValueText(o, settings::GetValue(o.id))).c_str());
             else if (settings::RestartPending(o.id))
             {
                 PushAccentText();
-                ImGui::TextUnformatted("Takes effect the next time the game starts.");
+                ImGui::TextUnformatted(i18n::C("Takes effect the next time the game starts."));
                 PopAccentText();
             }
             else if (o.id == Id::SmoothMotion && settings::GetBool(o.id) && video::FrameRate() == 30)
-                ImGui::TextDisabled("Off while the game runs at 30 fps (Frame Rate).");
+                ImGui::TextDisabled("%s", i18n::C("Off while the game runs at 30 fps (Frame Rate)."));
             else if (o.id == Id::SmoothMotion && settings::GetBool(o.id) && !video::HfrOffered())
-                ImGui::TextDisabled("This screen shows 60 pictures a second: nothing to add here.");
+                ImGui::TextDisabled("%s", i18n::C("This screen shows 60 pictures a second: nothing to add here."));
             else if (o.id == Id::Hdr || o.id == Id::HdrFormat || o.id == Id::HdrStrength || o.id == Id::HdrPaperWhite)
-                ImGui::TextDisabled("In use: %s.", video::HdrStatus());
+                ImGui::TextUnformatted(i18n::Format("In use: {}.", video::HdrStatus()).c_str());
             else if (o.apply == settings::Apply::Restart)
-                ImGui::TextDisabled("Changes take effect the next time the game starts.");
+                ImGui::TextDisabled("%s", i18n::C("Changes take effect the next time the game starts."));
             else if (std::string note = o.id == Id::FrameRate ? video::AutoFrameRateNote() : std::string(); !note.empty())
                 ImGui::TextDisabled("%s", note.c_str());  // what Auto runs at now
             // The wheel the page is about - and, for the two rows that need
@@ -863,10 +869,11 @@ namespace ui
             {
                 const std::string name = hid::wheel::Name();
                 if ((o.id == Id::ForceFeedback || o.id == Id::CenteringForce) && !hid::wheel::HasForceFeedback())
-                    ImGui::TextDisabled("%s: this system can't drive its motors, so this does nothing. Steering, the pedals and "
-                                        "the buttons all work.", name.empty() ? "This wheel" : name.c_str());
+                    ImGui::TextUnformatted(i18n::Format("{}: this system can't drive its motors, so this does nothing. "
+                        "Steering, the pedals and the wheel's buttons still work.",
+                        name.empty() ? i18n::Tr("This wheel") : std::string_view(name)).c_str());
                 else if (!name.empty())
-                    ImGui::TextDisabled("%s is connected.", name.c_str());
+                    ImGui::TextUnformatted(i18n::Format("{} is connected.", name).c_str());
                 else
                     ImGui::TextDisabled(" ");
             }
@@ -893,7 +900,7 @@ namespace ui
             s_opened = false;
             s_focusFirstRow = true;
         }
-        if (!ImGui::Begin("Settings", nullptr, flags))
+        if (!ImGui::Begin("##settings", nullptr, flags))
         {
             ImGui::End();
             return;
@@ -902,11 +909,11 @@ namespace ui
 #if defined(__APPLE__) && TARGET_OS_IOS
         // No F1 key to speak of: the controller's chord (its Back and Start
         // are View and Menu on an Xbox pad), or touch.
-        TitleText("Settings", "View + Menu on a controller, or tap with three fingers");
+        TitleText(i18n::C("Settings"), i18n::C("View + Menu on a controller, or tap with three fingers"));
 #elif defined(__APPLE__)
-        TitleText("Settings", "F1 or Cmd+, / Back + Start");
+        TitleText(i18n::C("Settings"), i18n::C("F1 or Cmd+, / Back + Start"));
 #else
-        TitleText("Settings", "F1 / Back + Start");
+        TitleText(i18n::C("Settings"), i18n::C("F1 / Back + Start"));
 #endif
 
         // Pages: LB/RB (Q/E) or the tabs; not under a dialog, which keeps them.
@@ -963,7 +970,9 @@ namespace ui
                     continue;
                 ImGuiTabItemFlags tabFlags = (s_tabPending && category == s_category) ? ImGuiTabItemFlags_SetSelected : 0;
                 ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
-                bool open = ImGui::BeginTabItem(settings::CategoryName(category), nullptr, tabFlags);
+                const char* categoryName = settings::CategoryName(category);
+                const std::string tab = i18n::Format("{}###{}", i18n::Tr(categoryName), categoryName);
+                bool open = ImGui::BeginTabItem(tab.c_str(), nullptr, tabFlags);
                 ImGui::PopItemFlag();
                 if (!open)
                     continue;
@@ -1003,10 +1012,11 @@ namespace ui
                             if (o.category == category && Shown(o))
                                 valueWidth = std::max(valueWidth, ValueWidth(o));
                     if (category == Category::Advanced)
-                        for (const char* text : { "Saving...", "Checking...", "Couldn't check (offline)", UpdateRowValue() })
+                        for (const char* text : { i18n::C("Saving..."), i18n::C("Checking..."),
+                                 i18n::C("Couldn't check (offline)"), UpdateRowValue() })
                             valueWidth = std::max(valueWidth, ImGui::CalcTextSize(text).x);
                     if (category == Category::Wheel)
-                        for (const char* text : { "Start", "17/17" })
+                        for (const char* text : { i18n::C("Start"), "17/17" })
                             valueWidth = std::max(valueWidth, ImGui::CalcTextSize(text).x);
                     valueWidth += 2 * kSpaceM * s;
                     float arrow = ImGui::GetFrameHeight();
@@ -1048,12 +1058,12 @@ namespace ui
                         ImGui::Indent(LabelInset());
                         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - LabelInset());
                         ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-                        ImGui::TextWrapped("SpeedBreaker %s", report::BuildString());
+                        ImGui::TextUnformatted(i18n::Format("SpeedBreaker {}", report::BuildString()).c_str());
                         // GPL-3.0 section 5(d): the interface shows the
                         // legal notices (NOTICE, THIRD_PARTY_NOTICES.md).
-                        ImGui::TextWrapped("Copyright (C) 2026 project(u) and SpeedBreaker contributors. Free software under the "
-                                           "GPL-3.0-or-later, with no warranty; third-party licenses come with the game. Not affiliated "
-                                           "with Electronic Arts or Valve.");
+                        ImGui::TextWrapped("%s", i18n::C("Copyright (C) 2026 project(u) and SpeedBreaker contributors. Free software "
+                            "under the GPL-3.0-or-later, with no warranty; third-party licenses come with the game. Not affiliated "
+                            "with Electronic Arts or Valve."));
                         ImGui::PopStyleColor();
                         ImGui::PopTextWrapPos();
                         ImGui::Unindent(LabelInset());
@@ -1079,7 +1089,7 @@ namespace ui
                 anyChanged = true;
         // A newer version (update/updater.h): first, so Down from the rows
         // lands on it.
-        if (const std::string update = update::FooterLabel(); !update.empty())
+        if (const std::string update = update::FooterLabel(i18n::Tr("Update to {}")); !update.empty())
         {
             PushAccentText();
             const bool pressed = ImGui::Button(update.c_str());
@@ -1089,17 +1099,17 @@ namespace ui
             ImGui::SameLine();
         }
         ImGui::BeginDisabled(!anyChanged);
-        if (ImGui::Button("Reset page"))
+        if (ImGui::Button(i18n::C("Reset page")))
             ImGui::OpenPopup("reset");
         ImGui::EndDisabled();
         ImGui::SameLine();
-        if (ImGui::Button("Close"))
+        if (ImGui::Button(i18n::C("Close")))
             CloseSettings();
 #if SB_QUIT_GAME
         // Last, after Close: Down from the rows lands on the footer's first
         // button, so Quit Game takes a Right more, and then asks.
         ImGui::SameLine();
-        if (ImGui::Button("Quit Game") && s_quit.Choose() == quit::Outcome::Asking)
+        if (ImGui::Button(i18n::C("Quit Game")) && s_quit.Choose() == quit::Outcome::Asking)
         {
             fprintf(stderr, "[ui] Quit Game: asking\n");
             ImGui::OpenPopup(kQuitPopup);
@@ -1111,9 +1121,10 @@ namespace ui
             // footer its legend was wider than the window and lost "B: close".)
             // Shorter where the footer's buttons leave less room (the update
             // button), never cut: "B: close" stays.
-            const char* legend = s_category == Category::Controls ? "A: set key   Y: clear   X: default   LB RB: page   B: close"
-                                                                 : "D-pad: choose, change   LB RB: page   B: close";
-            for (const char* shorter : { "LB RB: page   B: close", "B: close" })
+            const char* legend = i18n::C(s_category == Category::Controls
+                ? "A: set key   Y: clear   X: default   LB RB: page   B: close"
+                : "D-pad: choose, change   LB RB: page   B: close");
+            for (const char* shorter : { i18n::C("LB RB: page   B: close"), i18n::C("B: close") })
                 if (ImGui::GetCursorPosX() + ImGui::CalcTextSize(legend).x > ImGui::GetWindowContentRegionMax().x)
                     legend = shorter;
             float w = ImGui::CalcTextSize(legend).x;
@@ -1125,9 +1136,10 @@ namespace ui
         if (ImGui::BeginPopupModal("reset", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar))
         {
             popup = true;
-            ImGui::Text("Reset every %s setting to its default?", settings::CategoryName(s_category));
+            ImGui::TextUnformatted(i18n::Format("Reset every {} setting to its default?",
+                i18n::Tr(settings::CategoryName(s_category))).c_str());
             ImGui::Spacing();
-            if (ImGui::Button("Reset"))
+            if (ImGui::Button(i18n::C("Reset")))
             {
                 for (const auto& o : settings::Options())
                     if (o.category == s_category && Shown(o))
@@ -1146,7 +1158,7 @@ namespace ui
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
-            if (ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false) || ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+            if (ImGui::Button(i18n::C("Cancel")) || ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false) || ImGui::IsKeyPressed(ImGuiKey_Escape, false))
                 ImGui::CloseCurrentPopup();
             ImGui::SetItemDefaultFocus();
             ImGui::EndPopup();

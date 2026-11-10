@@ -30,7 +30,11 @@
 // (Files::movieRedirect, speechRedirect). The European (PAL, German) disc's
 // executable is taken the same way, with German (2) as the disc's own
 // language (DiscLanguage): its boot passes 2, and its disc holds German
-// movies and speech (copspeech_ge). None of this applies to the USA disc, which always has English's.
+// movies and speech (copspeech_ge). The Asian (NTSC) executable boots in
+// Chinese (9) and has that language's row (DiscLanguage): its menus, race
+// text and video subtitles are Chinese, while its NTSC movies and speech stay
+// English; choosing English there replaces its boot value. None of this
+// applies to the USA disc, which always has English's.
 // Files says what the installed files have for a language (the text pack
 // and the speech bank in NFS/ZDIR.BIN, its movies in Movies/), and Note /
 // LogLine say it in words. Measured with the USA disc's files in Spanish and
@@ -76,17 +80,23 @@ namespace game::language
         { 7, "danish", "Danish", "DANISH", "en" },
         { 12, "polish", "Polish", "POLISH", "en" },
         { 13, "finnish", "Finnish", "FINNISH", "en" },
+        // The Asian (NTSC) disc's own language (its boot passes 9); its text
+        // pack and video subtitles are Chinese. Its movies and speech are
+        // English, as the disc has them.
+        { 9, "chinese", "Chinese", "CHINESE", "en" },
     };
     constexpr int32_t kEnglish = 0;
     constexpr int32_t kGerman = 2;   // the European (PAL, German) disc's own
     constexpr int32_t kSpanish = 4;  // the European (PAL, Spanish) disc's own: its boot passes 4
+    constexpr int32_t kChinese = 9;  // the Asian (NTSC) disc's own
 
     // The language a release's disc is made for, by its manifest region id
     // (install/manifest.h): the Language row's default for that disc
     // (main.cpp). -1 for the USA disc, whose default stays English.
     constexpr int32_t DiscLanguage(std::string_view region)
     {
-        return region == "pal-es" ? kSpanish : region == "pal-de" ? kGerman : -1;
+        return region == "pal-es" ? kSpanish : region == "pal-de" ? kGerman
+            : region == "ntsc-asia" ? kChinese : -1;
     }
 
     constexpr const Language* Find(int32_t id)
@@ -120,11 +130,12 @@ namespace game::language
         return lr == kBootCall && chosen != kEnglish ? chosen : r3;
     }
 
-    // The same for the running release: a PAL executable boots in its disc's
-    // language, so there the chosen language applies whichever it is.
-    constexpr int32_t BootLanguageFor(uint32_t lr, int32_t r3, int32_t chosen, bool palBuild)
+    // The same for the running release: a regional executable boots in a
+    // language of its own (Spanish, German, Chinese), so there the chosen
+    // language applies whichever it is, English included.
+    constexpr int32_t BootLanguageFor(uint32_t lr, int32_t r3, int32_t chosen, bool regionalBuild)
     {
-        return palBuild ? (lr == kBootCall ? chosen : r3) : BootLanguage(lr, r3, chosen);
+        return regionalBuild ? (lr == kBootCall ? chosen : r3) : BootLanguage(lr, r3, chosen);
     }
 
     // The speech record with a redirect to another language's bank (its

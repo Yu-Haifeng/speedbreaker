@@ -2,8 +2,8 @@
 """Put a second region's XenonRecomp output in a C++ namespace, so it links
 into the same binary as the USA code (ppc/):
 
-    tools/XenonRecomp/build/XenonRecomp/XenonRecomp config/pal-es/nfsmw.toml tools/XenonRecomp/XenonUtils/ppc_context.h
-    python3 scripts/region_ppc.py ppc-pal-es pal_es
+    tools/XenonRecomp/build/XenonRecomp/XenonRecomp config/<region>/nfsmw.toml tools/XenonRecomp/XenonUtils/ppc_context.h
+    python3 scripts/region_ppc.py ppc-<region> <namespace>
 
 Both outputs name their functions after guest addresses (sub_82XXXXXX), and
 many addresses are the same in both, so as written they would collide. In

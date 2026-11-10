@@ -110,3 +110,40 @@ else()
     set(SB_HAVE_PAL_DE OFF CACHE INTERNAL "ppc-pal-de is linked")
     message(STATUS "PAL (German) release: not linked (no ppc-pal-de/, or SB_PAL_DE=OFF)")
 endif()
+
+# The Asian (NTSC) release's code, the same way (../ppc-ntsc-asia:
+# XenonRecomp with config/ntsc-asia/nfsmw.toml on that disc's default.xex,
+# then scripts/region_ppc.py ppc-ntsc-asia ntsc_asia). Its address table and
+# names (runtime/region/ntsc_asia_addresses.inc, ntsc_asia_names.h;
+# docs/REGION_NTSC_ASIA.md) must be there too.
+# SB_NTSC_ASIA: AUTO (when ppc-ntsc-asia/ is there), ON (required) or OFF.
+set(SB_NTSC_ASIA AUTO CACHE STRING "Link the Asian (NTSC) release's recompiled code: AUTO, ON or OFF")
+file(GLOB PPC_NTSC_ASIA_SOURCES ${ROOT}/ppc-ntsc-asia/*.cpp)
+if(SB_NTSC_ASIA STREQUAL "ON" AND NOT PPC_NTSC_ASIA_SOURCES)
+    message(FATAL_ERROR "SB_NTSC_ASIA=ON, but ppc-ntsc-asia/ has no generated sources")
+endif()
+if(PPC_NTSC_ASIA_SOURCES AND NOT SB_NTSC_ASIA STREQUAL "OFF")
+    file(READ ${ROOT}/ppc-ntsc-asia/ppc_recomp_shared.h _sb_ntsc_asia_head LIMIT 64)
+    if(NOT _sb_ntsc_asia_head MATCHES "^// Namespaced by scripts/region_ppc.py: ntsc_asia")
+        message(FATAL_ERROR "ppc-ntsc-asia/ isn't namespaced: run python3 scripts/region_ppc.py ppc-ntsc-asia ntsc_asia")
+    endif()
+    foreach(_sb_generated ntsc_asia_addresses.inc ntsc_asia_names.h)
+        if(NOT EXISTS ${ROOT}/runtime/region/${_sb_generated})
+            message(FATAL_ERROR "ppc-ntsc-asia/ is there, but runtime/region/${_sb_generated} isn't: run "
+                "python3 -I survey/region_map.py table --region ntsc-asia <usa dir> <asia dir> <funcmap.tsv> (docs/REGION_NTSC_ASIA.md)")
+        endif()
+    endforeach()
+    add_library(NfsmwRecompNtscAsiaLib STATIC ${PPC_NTSC_ASIA_SOURCES})
+    target_compile_features(NfsmwRecompNtscAsiaLib PUBLIC cxx_std_20)
+    target_include_directories(NfsmwRecompNtscAsiaLib PRIVATE
+        ${ROOT}/ppc-ntsc-asia
+        ${ROOT}/tools/XenonRecomp/XenonUtils
+        ${ROOT}/tools/XenonRecomp/thirdparty/simde)
+    get_target_property(_sb_ppc_options NfsmwRecompLib COMPILE_OPTIONS)
+    target_compile_options(NfsmwRecompNtscAsiaLib PRIVATE ${_sb_ppc_options})
+    set(SB_HAVE_NTSC_ASIA ON CACHE INTERNAL "ppc-ntsc-asia is linked")
+    message(STATUS "Asian (NTSC) release: linked (ppc-ntsc-asia/)")
+else()
+    set(SB_HAVE_NTSC_ASIA OFF CACHE INTERNAL "ppc-ntsc-asia is linked")
+    message(STATUS "Asian (NTSC) release: not linked (no ppc-ntsc-asia/, or SB_NTSC_ASIA=OFF)")
+endif()

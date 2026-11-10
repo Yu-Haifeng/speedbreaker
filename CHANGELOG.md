@@ -4,6 +4,31 @@ What changed in each SpeedBreaker release, newest first. Each release's notes on
 its entry here, and the game shows the entry once, the first time a new version starts (offline:
 it's built into the game).
 
+## v0.2.5
+
+### What's new
+
+- **The Asian (NTSC) disc, in builds from source.** A build with its code (README, Building from
+  source, step 2) plays the Hong Kong disc with its Chinese menus, race text and video subtitles,
+  and its English NTSC movies and speech, and saves in its own folder (save-ntsc-asia/). Choose
+  English in Settings > Game > Language to switch its menus and subtitles to English. It installs
+  beside a USA, Spanish or German install. The downloads don't include it yet: their installer
+  refuses the Asian disc up front, saying it needs a build with its code.
+- **Overlay Language** (Settings > Advanced): SpeedBreaker's own menus, settings, performance
+  overlay and dialogs can be English or Simplified Chinese. System, the default, follows the
+  device's language; changing it applies immediately. Chinese uses a CJK font from the system,
+  merged with the built-in one.
+- The Asian and Spanish executables have the same size. The installer and startup now hash the
+  actual executable instead of guessing from size alone or trusting the install marker's hash.
+- HFR diagnostics and frame pacing read the Asian release's moved `.data` globals through the
+  same regional address table as its code.
+
+### More about it
+
+- For builders: ppc-ntsc-asia/ from config/ntsc-asia/ (-DSB_NTSC_ASIA=OFF leaves it out).
+  survey/func_map.py and survey/region_map.py --region ntsc-asia made its tables; see
+  docs/REGION_NTSC_ASIA.md.
+
 ## v0.2.4
 
 ### What's new

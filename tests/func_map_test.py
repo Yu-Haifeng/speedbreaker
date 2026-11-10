@@ -14,6 +14,8 @@ paired with its counterpart and the right status, the dropped one missing,
 the added one reported; the leaf function and its table found, with its
 bounds, base, index register, default and labels; neither a table the
 translated USA tables cover nor one the USA build has too (moved) reported.
+Further synthetic checks reject position-paired reordered switch tables and
+ambiguous repeated data while accepting code-proven mappings.
 """
 import pathlib
 import random
@@ -138,6 +140,92 @@ def leaf_function(addr, lang=0x828FF0C8, n=14):
     return ws, {'base': addr + 16, 'r': 11, 'default': default, 'labels': labels, 'size': 4 * len(ws)}
 
 
+def mapping_regressions(region_map):
+    """Changed-function switches and moved data must not be paired by chance."""
+    fails = []
+
+    def table(labels, default):
+        return {'r': 11, 'labels': list(labels), 'default': default}
+
+    rm = region_map.RegionMap.__new__(region_map.RegionMap)
+    # A's and B's case bodies are distinct. The regional compiler put B's
+    # table first: matching by position would pair the wrong switches.
+    usa = [table((100, 104), 180), table((200, 204), 280)]
+    pal = [table((500, 504), 580), table((300, 304), 380)]
+    pairs = [(100, 300), (104, 304), (180, 380), (200, 500), (204, 504), (280, 580)]
+    code = {a: i for i, (a, _) in enumerate(pairs)}
+    code.update({b: i for i, (_, b) in enumerate(pairs)})
+    rm.same_code = lambda u, p, n=4: 'exact' if u in code and code.get(u) == code.get(p) else None
+    found = rm.switch_case_map(usa, pal)
+    for u, p in ((100, 300), (104, 304), (200, 500), (204, 504)):
+        if found.get(u) != {p}:
+            fails.append(f'reordered switch tables: {u} -> {found.get(u)}, expected {{{p}}}')
+    rm._switch_cases = {0: found}
+    if rm.switch_case(0, 100) != (300, 100):
+        fails.append('a uniquely matching reordered switch case was rejected')
+
+    # Two identical regional copies of A make its targets ambiguous. Keeping
+    # both candidates makes switch_case refuse the mapping instead of picking
+    # the first table.
+    ambiguous = pal + [table((700, 704), 780)]
+    code.update({700: code[100], 704: code[104], 780: code[180]})
+    found = rm.switch_case_map(usa, ambiguous)
+    rm._switch_cases = {0: found}
+    if found.get(100) != {300, 700} or rm.switch_case(0, 100) is not None:
+        fails.append(f'ambiguous switch target was not refused: {found.get(100)}')
+
+    def image(data, lo):
+        img = region_map.Image.__new__(region_map.Image)
+        img.data = data
+        img.sections = [('.data', lo, lo + 0x1000, 'data')]
+        return img
+
+    anchor = DATA_ADDR + 0x100
+    context = bytes((11 + 37 * i) & 0xFF for i in range(256))
+    source = bytearray(0x00A00000)
+    regional = bytearray(0x00A00000)
+    source[anchor - 64 - BASE:anchor + 192 - BASE] = context
+    regional[anchor + 0x40 - 64 - BASE:anchor + 0x40 + 192 - BASE] = context
+    rm.usa, rm.pal = image(source, DATA_ADDR), image(regional, DATA_ADDR + 0x40)
+    rm._data_refs = lambda: {anchor - 4: 0x40}
+    rm._data_keys = [anchor - 4]
+    try:
+        target, _ = rm.data(anchor)
+        if target != anchor + 0x40:
+            fails.append(f'unique neighbouring data context: {target:#x}')
+    except ValueError as e:
+        fails.append(f'unique neighbouring data context was rejected: {e}')
+
+    # An identical second object makes the neighbour's byte pattern ambiguous.
+    regional[anchor + 0x400 - 64 - BASE:anchor + 0x400 + 192 - BASE] = context
+    try:
+        target, _ = rm.data(anchor)
+        fails.append(f'repeated neighbouring data context mapped to {target:#x}')
+    except ValueError:
+        pass
+    # Two direct references on opposite sides bound the field even when the
+    # whole context repeats: their shared delta identifies the moved object.
+    rm._data_refs = lambda: {anchor - 4: 0x40, anchor + 4: 0x40}
+    rm._data_keys = [anchor - 4, anchor + 4]
+    try:
+        target, _ = rm.data(anchor)
+        if target != anchor + 0x40:
+            fails.append(f'bracketed data field: {target:#x}')
+    except ValueError as e:
+        fails.append(f'bracketed data field was rejected: {e}')
+
+    # A direct paired code reference is stronger evidence than byte uniqueness.
+    rm._data_refs = lambda: {anchor: 0x40}
+    rm._data_keys = [anchor]
+    try:
+        target, _ = rm.data(anchor)
+        if target != anchor + 0x40:
+            fails.append(f'direct data reference: {target:#x}')
+    except ValueError as e:
+        fails.append(f'direct data reference was rejected: {e}')
+    return fails
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
@@ -242,6 +330,8 @@ def main():
         found = region_map.find_extra_functions(rm, f'base = 0x{leaf_info["base"]:08X}\n')
         if found:
             fails.append(f'find_extra_functions with the table covered: {found}')
+
+    fails.extend(mapping_regressions(region_map))
 
     for f in fails:
         print('FAIL', f)

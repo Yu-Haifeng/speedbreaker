@@ -187,7 +187,7 @@ namespace
     }
     uint32_t Step(uint8_t* base)
     {
-        const uint32_t stepper = PPC_LOAD_U32(kStepper);
+        const uint32_t stepper = PPC_LOAD_U32(region::Addr(kStepper));
         return stepper ? PPC_LOAD_U32(stepper + 40) : 0;
     }
 
@@ -284,12 +284,13 @@ namespace
     template <typename F>
     void ForEachParticle(uint8_t* base, F&& fn)
     {
-        if (int32_t(PPC_LOAD_U32(kEmitterSystem)) <= 0)
+        const uint32_t system = region::Addr(kEmitterSystem);
+        if (int32_t(PPC_LOAD_U32(system)) <= 0)
             return;
         uint32_t guard = 0;
         for (uint32_t i = 0; i < kEmitterLists; i++)
         {
-            const uint32_t head = kEmitterSystem + kEmitterListHeads + i * 8;
+            const uint32_t head = system + kEmitterListHeads + i * 8;
             for (uint32_t node = PPC_LOAD_U32(head); node && node != head && guard < 200000; node = PPC_LOAD_U32(node), guard++)
             {
                 const uint32_t emitter = PPC_LOAD_U32(node + 8);
@@ -392,7 +393,7 @@ namespace
     // picture 1-3 levels darker every other frame, run h3).
     void WaitPlayed(uint8_t* base, bool before)
     {
-        if (!PPC_LOAD_U32(kRenderThreaded))
+        if (!PPC_LOAD_U32(region::Addr(kRenderThreaded)))
             return;
         if (!before)
             s_stats.threaded++;
@@ -402,7 +403,7 @@ namespace
         // The cap only keeps a wedged render thread from hanging this one.
         const auto t0 = std::chrono::steady_clock::now();
         bool said = false;
-        for (int spins = 0; PPC_LOAD_U32(kFramePlaying) == 1; spins++)
+        for (int spins = 0; PPC_LOAD_U32(region::Addr(kFramePlaying)) == 1; spins++)
         {
             const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
             if (ms > 250.0 && !said)
@@ -411,8 +412,9 @@ namespace
                 static int lines = 0;
                 if (lines++ < 8)
                     fprintf(stderr, "[hfr] render thread still playing after 250 ms (%s the in-between): recorded %u, played %u, "
-                                    "queue %u, end %u\n", before ? "before" : "after", PPC_LOAD_U32(0x82909650), PPC_LOAD_U32(0x82909654),
-                        PPC_LOAD_U32(0x8290965C), unsigned(PPC_LOAD_U8(0x82909658)));
+                                    "queue %u, end %u\n", before ? "before" : "after", PPC_LOAD_U32(region::Addr(0x82909650)),
+                        PPC_LOAD_U32(region::Addr(0x82909654)), PPC_LOAD_U32(region::Addr(0x8290965C)),
+                        unsigned(PPC_LOAD_U8(region::Addr(0x82909658))));
             }
             if (ms > 10'000.0)
             {
@@ -448,17 +450,17 @@ namespace
         // picture, 3.8 ms each: M2's run gd2). NFSMW_HFR_VBSLOT=1 (M3) puts back
         // only the gate: the in-between picture takes a slot of its own.
         if (s_vbSlot)
-            Save(base, 0x82909770, 0x20);
+            Save(base, region::Addr(0x82909770), 0x20);
         else
-            Save(base, 0x82909730, 0x60);
+            Save(base, region::Addr(0x82909730), 0x60);
         // The eye adaptation (sub_82223220: adapted, measured at +0 and +4)
         // and the post-processing state after it, which a render writes too
         // (M2's write set ws1: 0x82908AC1-AF7 and 0x82908B42-B97 left changed
         // by the in-between picture).
-        Save(base, 0x82908AB8, 0xE8);
-        Save(base, 0x82A2C480, 0x50);  // its luminance targets' ping-pong (sub_822234F0)
-        Save(base, 0x82A2D5E0, 4);     // the render's clock (sub_823AFC68)
-        Save(base, 0x82C5E348, 4);     // the camera-update counter (sub_82161000)
+        Save(base, region::Addr(0x82908AB8), 0xE8);
+        Save(base, region::Addr(0x82A2C480), 0x50);  // its luminance targets' ping-pong (sub_822234F0)
+        Save(base, region::Addr(0x82A2D5E0), 4);     // the render's clock (sub_823AFC68)
+        Save(base, region::Addr(0x82C5E348), 4);     // the camera-update counter (sub_82161000)
         s_stats.pictures++;
         if (s_blend)
         {
@@ -948,9 +950,14 @@ namespace
     const bool s_keepViews = [] { const char* v = std::getenv("NFSMW_HFR_KEEP_VIEWS"); return !(v && v[0] == '0'); }();
     bool KeepView(uint32_t view)
     {
-        if (!s_enabled || !s_keepViews || !s_inBetween.load(std::memory_order_acquire) || view < kViews || view >= kViews + 24 * kViewBytes)
+        if (!s_enabled || !s_keepViews || !s_inBetween.load(std::memory_order_acquire))
             return false;
-        const uint32_t index = (view - kViews) / kViewBytes;
+        // hfr::Init runs before region::Select, so translate on use, never in
+        // this namespace's static initialization.
+        const uint32_t views = region::Addr(kViews);
+        if (view < views || view >= views + 24 * kViewBytes)
+            return false;
+        const uint32_t index = (view - views) / kViewBytes;
         const uint32_t m = s_activeSkip.load(std::memory_order_relaxed);
         return ((m & kSkipShadow) && index >= 13 && index <= 16) || ((m & kSkipEnv) && index >= 18);
     }
@@ -1218,7 +1225,7 @@ SB_HOOK(sub_823AFC68)
     double times[5] = { SinceVblankMs(vblank), -1, -1, -1, -1 };
     const bool timeline = s_timeline.frames && s_frameCount + 1 >= s_timeline.from && s_frameCount + 1 < s_timeline.from + s_timeline.frames;
     s_timelineOn.store(timeline, std::memory_order_relaxed);
-    if (s_render2 && PPC_LOAD_U32(kRenderSkip) == 0)
+    if (s_render2 && PPC_LOAD_U32(region::Addr(kRenderSkip)) == 0)
     {
         s_step = Step(base);
         s_writeSet = s_enabled ? hfrdiag::WriteSetPhase(++s_frameCount) : 0;
@@ -1268,7 +1275,7 @@ SB_HOOK(sub_823AFC68)
             const uint32_t steps = s_step - s_lastRealStep;
             // Nor the first frames the render thread plays (a race or a
             // cutscene starting: they build what they draw first).
-            s_threadedFrames = PPC_LOAD_U32(kRenderThreaded) ? s_threadedFrames + 1 : 0;
+            s_threadedFrames = PPC_LOAD_U32(region::Addr(kRenderThreaded)) ? s_threadedFrames + 1 : 0;
             if (s_threadedFrames == 1 || s_threadedFrames == 2)
                 s_stats.skippedStart++;
             else if (s_writeSet == 2 || s_writeSet == 3)
@@ -1365,7 +1372,7 @@ SB_HOOK(sub_823AFC68)
     static int64_t s_lastEntryNs = 0;
     {
         const int64_t nowNs = SteadyNs(), entryNs = nowNs - int64_t((times[4] - times[0]) * 1e6);
-        if (s_enabled && PPC_LOAD_U32(kRenderSkip) == 0)
+        if (s_enabled && PPC_LOAD_U32(region::Addr(kRenderSkip)) == 0)
         {
             s_renderMs[drew ? 1 : 0].push_back(float(times[4] - times[0]));
             if (s_lastEntryNs)

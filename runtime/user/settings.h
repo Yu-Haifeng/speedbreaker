@@ -144,6 +144,7 @@ namespace settings
         // Advanced
         AsyncShaders,
         PerformanceOverlay,
+        OverlayLanguage,  // The language of SpeedBreaker's own overlay
         UpdateCheck,  // Check for Updates at Startup (update/updater.h); the menu shows it after Check for Updates
         // Game (the [game] table)
         GameLanguage,  // game/language.cpp: the game's language, game::language's ids (English = 0)

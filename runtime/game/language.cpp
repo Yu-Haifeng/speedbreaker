@@ -70,7 +70,11 @@ namespace
     int32_t Chosen()
     {
         const int32_t launch = s_launch.load(std::memory_order_relaxed);
-        return launch >= 0 ? launch : settings::GetInt(settings::Id::GameLanguage);
+        const int32_t id = launch >= 0 ? launch : settings::GetInt(settings::Id::GameLanguage);
+        // Chinese exists in the Asian executable's language table only: a
+        // setting carried over from that disc runs the USA/PAL ones in
+        // English rather than an index their table lacks.
+        return id == kChinese && !region::IsNtscAsia() ? kEnglish : id;
     }
 
     // `name` in `dir`, in any case (the disc's folders are "Movies" and
@@ -150,7 +154,7 @@ SB_HOOK(sub_822BCBC8)
         const int32_t chosen = Chosen();
         if (const Language* l = Find(chosen))
             fprintf(stderr, "%s\n", LogLine(*l, *FilesOf(chosen)).c_str());
-        if (const int32_t r3 = BootLanguageFor(kBootCall, ctx.r3.s32, chosen, region::IsPal()); r3 != ctx.r3.s32)
+        if (const int32_t r3 = BootLanguageFor(kBootCall, ctx.r3.s32, chosen, region::IsRegional()); r3 != ctx.r3.s32)
             ctx.r3.s64 = r3;
     }
     SB_ORIGINAL(sub_822BCBC8)(ctx, base);

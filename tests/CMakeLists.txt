@@ -31,6 +31,9 @@ else()
 endif()
 
 sb_test(block_ranges_test)
+# The overlay's language (ui/i18n.h): System, English and Simplified Chinese,
+# translated formatting and the English fallback.
+sb_test(i18n_test SOURCES ${RT}/ui/i18n.cpp)
 # Where guest memory and the upload ring go (gpu/memory_plan.h, header only).
 sb_test(memory_plan_test)
 # A discrete GPU's PCIe link for the logs (gpu/pcie_link.h, header only; issue #40).
@@ -281,11 +284,11 @@ else()
 endif()
 # Settings: a device's own defaults, before and after Load.
 if(WIN32)
-    sb_test(settings_test SOURCES ${RT}/user/settings.cpp ${RT}/platform/win32/file_io.cpp ${RT}/platform/win32/folders.cpp
-        ARGS ${CMAKE_CURRENT_BINARY_DIR}/settings_out)
+    sb_test(settings_test SOURCES ${RT}/user/settings.cpp ${RT}/ui/i18n.cpp ${RT}/platform/win32/file_io.cpp
+        ${RT}/platform/win32/folders.cpp ARGS ${CMAKE_CURRENT_BINARY_DIR}/settings_out)
     target_link_libraries(settings_test PRIVATE shell32 ole32)
 else()
-    sb_test(settings_test SOURCES ${RT}/user/settings.cpp ${RT}/platform/posix/file_io.cpp
+    sb_test(settings_test SOURCES ${RT}/user/settings.cpp ${RT}/ui/i18n.cpp ${RT}/platform/posix/file_io.cpp
         ARGS ${CMAKE_CURRENT_BINARY_DIR}/settings_out)
 endif()
 target_include_directories(settings_test SYSTEM PRIVATE ${ROOT}/tools/XenonRecomp/thirdparty/tomlplusplus/include)
@@ -333,24 +336,37 @@ if(NOT WIN32)
     target_compile_options(region_manifest_test_pal_de PRIVATE -O2 -UNDEBUG)
     target_compile_definitions(region_manifest_test_pal_de PRIVATE SB_PAL_DE=1)
     add_test(NAME region_manifest_test_pal_de COMMAND region_manifest_test_pal_de ${CMAKE_BINARY_DIR}/region_manifest_pal_de_scratch)
+    # Every region linked (SB_PAL_DE and SB_NTSC_ASIA): four manifests, the
+    # Asian and Spanish default.xex of one size told apart by hash/marker.
+    add_executable(region_manifest_test_all ${CMAKE_CURRENT_SOURCE_DIR}/region_manifest_test.cpp
+        ${RT}/install/placement.cpp ${RT}/install/installer.cpp ${RT}/install/locate.cpp
+        ${RT}/install/manifest.cpp ${RT}/install/result.cpp ${RT}/install/disc_source.cpp ${RT}/install/sha256.cpp
+        ${RT}/user/portable.cpp ${RT}/platform/posix/file_io.cpp)
+    target_include_directories(region_manifest_test_all PRIVATE ${RT})
+    target_link_libraries(region_manifest_test_all PRIVATE Threads::Threads)
+    target_compile_options(region_manifest_test_all PRIVATE -O2 -UNDEBUG)
+    target_compile_definitions(region_manifest_test_all PRIVATE SB_PAL_DE=1 SB_NTSC_ASIA=1)
+    add_test(NAME region_manifest_test_all COMMAND region_manifest_test_all ${CMAKE_BINARY_DIR}/region_manifest_all_scratch)
     if(APPLE AND NOT IOS)
         target_link_libraries(install_folder_test PRIVATE "-framework CoreFoundation")  # placement.cpp's iCloud check
         target_link_libraries(portable_test PRIVATE "-framework CoreFoundation")
         target_link_libraries(region_manifest_test PRIVATE "-framework CoreFoundation")
         target_link_libraries(region_manifest_test_pal_de PRIVATE "-framework CoreFoundation")
+        target_link_libraries(region_manifest_test_all PRIVATE "-framework CoreFoundation")
     endif()
 endif()
-# The PAL (Spanish) release's hook addresses (runtime/region/region.h):
-# every guest address the runtime names has a PAL one, every hook is an
-# SB_HOOK, code and .rdata constants go through region::Addr, none is in a
-# function the PAL build changed. -DSB_REGION_SURVEY=<folder with mw_usa/ and
-# mw_pal/ (image.bin, xexsurvey.txt; mw_pal/funcmap.tsv)>, decrypted from the
+# A regional release's hook addresses (runtime/region/region.h): every guest
+# address the runtime names has a regional one, every hook is an SB_HOOK,
+# code and data constants go through region::Addr, and only reviewed
+# addresses are in a function the regional build changed.
+# -DSB_REGION_SURVEY=<folder with mw_usa/ and a region's mw_pal/ or
+# mw_ntsc_asia/ (image.bin, xexsurvey.txt, funcmap.tsv)>, decrypted from the
 # player's own discs, also checks the bytes at both addresses match and that
-# the table and config/pal-es/ are what survey/region_map.py writes.
+# the table and config/<region>/ are what survey/region_map.py writes.
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
-    set(SB_REGION_SURVEY "" CACHE PATH "Decrypted USA and PAL images for region_addresses_check (optional)")
-    if(SB_REGION_SURVEY)
+    set(SB_REGION_SURVEY "" CACHE PATH "Decrypted USA and regional images for region_addresses_check (optional)")
+    if(SB_REGION_SURVEY AND EXISTS ${SB_REGION_SURVEY}/mw_pal/funcmap.tsv)
         add_test(NAME region_addresses_check COMMAND Python3::Interpreter -I ${CMAKE_CURRENT_SOURCE_DIR}/region_addresses_check.py
             ${ROOT} ${SB_REGION_SURVEY}/mw_usa ${SB_REGION_SURVEY}/mw_pal ${SB_REGION_SURVEY}/mw_pal/funcmap.tsv)
     else()
@@ -372,6 +388,14 @@ if(Python3_Interpreter_FOUND)
     else()
         add_test(NAME region_addresses_check_pal_de COMMAND Python3::Interpreter -I ${CMAKE_CURRENT_SOURCE_DIR}/region_addresses_check.py
             ${ROOT} --region pal-de)
+    endif()
+    if(SB_REGION_SURVEY AND EXISTS ${SB_REGION_SURVEY}/mw_ntsc_asia/funcmap.tsv)
+        add_test(NAME region_addresses_check_ntsc_asia COMMAND Python3::Interpreter -I ${CMAKE_CURRENT_SOURCE_DIR}/region_addresses_check.py
+            ${ROOT} ${SB_REGION_SURVEY}/mw_usa ${SB_REGION_SURVEY}/mw_ntsc_asia ${SB_REGION_SURVEY}/mw_ntsc_asia/funcmap.tsv
+            --region ntsc-asia)
+    else()
+        add_test(NAME region_addresses_check_ntsc_asia COMMAND Python3::Interpreter -I ${CMAKE_CURRENT_SOURCE_DIR}/region_addresses_check.py
+            ${ROOT} --region ntsc-asia)
     endif()
     # survey/func_map.py (the function map region_map.py takes) and
     # region_map.py's search for jump tables only another build has, on two

@@ -71,10 +71,11 @@ ctest's `region_addresses_check_pal_de` do the same check.
 
 ## Another region
 
-The same tools take another PAL disc, given a region entry in
+The same tools take another disc, given a region entry in
 `survey/region_map.py` (`REGIONS`), `runtime/region/region.h`/`.cpp`,
-`install/manifest.cpp` and `game/language.h` (`DiscLanguage`). What to look
-at on the way:
+`install/manifest.cpp` and `game/language.h` (`DiscLanguage`). The Asian
+(NTSC) disc is the worked example of a non-PAL region:
+[docs/REGION_NTSC_ASIA.md](REGION_NTSC_ASIA.md). What to look at on the way:
 
 - `func_map.py`'s summary: how many functions are the same, changed or
   missing, and in how many pieces the layout moved. Far more than the 19

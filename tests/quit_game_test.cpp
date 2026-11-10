@@ -282,13 +282,13 @@ namespace
             // No way out of its own.
             for (const char* name : { "exit(", "_Exit(", "abort(", "SDL_Quit(", "terminate(" })
                 CHECK(!Has(l, name), "settings_menu.cpp:%zu: %s: %s", i + 1, name, Trim(l).c_str());
-            if (Has(l, "ImGui::Button(\"Quit Game\")"))
+            if (Has(l, "ImGui::Button(i18n::C(\"Quit Game\"))"))
                 button = int(i);
             if (Has(l, "\"Quit SpeedBreaker? Progress since your last save will be lost.\""))
                 text = int(i);
-            if (Has(l, "ImGui::Button(\"Quit\")"))
+            if (Has(l, "ImGui::Button(i18n::C(\"Quit\"))"))
                 quitButton = int(i);
-            if (Has(l, "ImGui::Button(\"Cancel\")") && quitButton >= 0 && cancelButton < 0 && int(i) > quitButton)
+            if (Has(l, "ImGui::Button(i18n::C(\"Cancel\"))") && quitButton >= 0 && cancelButton < 0 && int(i) > quitButton)
                 cancelButton = int(i);
             if (Has(l, "s_quit.TakeFocus()"))
                 focus = int(i);
@@ -298,7 +298,7 @@ namespace
                 push = int(i);
             if (Has(l, "s_quit.Back()"))
                 back = int(i);
-            if (Has(l, "ImGui::Button(\"Close\")"))
+            if (Has(l, "ImGui::Button(i18n::C(\"Close\"))"))
                 close = int(i);
         }
         CHECK(button > 0, "the footer has a Quit Game button");

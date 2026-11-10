@@ -1,10 +1,11 @@
 """The guest addresses the runtime's sources name: every sub_82XXXXXX (a
 recompiled function: a hook, or one it calls or names) and every 0x82XXXXXX
 literal outside comments (code inside a function: return addresses, ranges;
-data: globals, tables, constants). survey/region_map.py maps each to a PAL
-default.xex: the Spanish one into pal_es_addresses.inc, the German one into
-pal_de_addresses.inc; tests/region_addresses_check.py checks each table still
-covers them. Python 3, no dependencies.
+data: globals, tables, constants). survey/region_map.py maps each to a
+regional default.xex: Spanish into pal_es_addresses.inc, German into
+pal_de_addresses.inc, Asian into ntsc_asia_addresses.inc;
+tests/region_addresses_check.py checks each table still covers them.
+Python 3, no dependencies.
 """
 import pathlib
 import re
@@ -14,9 +15,12 @@ PAL_ES_XEX_SHA256 = 'aad15fc218d034de3131f746e0b763dd8049a40dd676efc87667fcaf4fc
 # The German disc's (Need for Speed - Most Wanted (Germany)), as SpeedBreaker
 # v0.2.1's installer reports it.
 PAL_DE_XEX_SHA256 = '23ece29d18724ea28971d52f936964d127148bd2359ff24795da7442b9069bf4'
+# The Asian (NTSC) disc's (Need for Speed - Most Wanted (HK)) default.xex.
+NTSC_ASIA_XEX_SHA256 = '0cd7b9fa3957de085e298c91faa726116ad0079abaefead82c2f3337ee432e64'
 
 SKIP_DIRS = {'thirdparty'}
-SKIP_FILES = {'pal_es_addresses.inc', 'pal_es_names.h', 'pal_de_addresses.inc', 'pal_de_names.h'}
+SKIP_FILES = {'pal_es_addresses.inc', 'pal_es_names.h', 'pal_de_addresses.inc', 'pal_de_names.h',
+              'ntsc_asia_addresses.inc', 'ntsc_asia_names.h'}
 EXTENSIONS = {'.cpp', '.h', '.inc', '.mm'}
 SUB = re.compile(r'\bsub_(82[0-9A-F]{6})\b')
 LIT = re.compile(r'\b0x(82[0-9A-Fa-f]{6})(?:u|U)?\b')

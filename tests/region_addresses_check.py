@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""A PAL release's addresses for the runtime's hooks (runtime/region/region.h):
-the Spanish one's (pal-es, the default) or the German one's (pal-de):
+"""A regional release's addresses for the runtime's hooks
+(runtime/region/region.h): the Spanish one's (pal-es, the default), the
+German one's (pal-de) or the Asian one's (ntsc-asia):
 
-    python3 tests/region_addresses_check.py <repo> [<usa dir> <pal dir> <funcmap.tsv>] [--region pal-de]
+    python3 tests/region_addresses_check.py <repo> [<usa dir> <region dir> <funcmap.tsv>] [--region ntsc-asia]
 
 Without the images (the default; no game data needed):
   - every guest address the runtime's sources name (runtime/region/
@@ -14,7 +15,7 @@ Without the images (the default; no game data needed):
   - every code or .rdata constant the runtime's .cpp files use is used through
     region::Addr (its PAL address can differ; .data, .bss and addresses outside
     the image are the same in both, which the table records);
-  - no address is in one of the 19 functions the PAL build changed;
+  - no address is in a function the regional build changed;
   - config/<region>/ is config/ translated: the same settings and hooks, only
     their addresses moved (a hook added to config/nfsmw.toml since the region's
     was written fails here).
@@ -32,6 +33,14 @@ import sys
 
 HEX82 = re.compile(r'0x82[0-9A-Fa-f]{6}\b')
 
+# Runtime addresses in a function the regional build changed, reviewed by
+# hand: (region, USA address): why it is still the right instruction.
+CHANGED_HOOKS = {
+    # The boot's return address: the hook only compares lr, and the mapped
+    # instruction is byte-identical and in an unchanged run of the function.
+    ('ntsc-asia', 0x823B48E0): 'the Asian boot language hook compares its return address only',
+}
+
 
 def config_shape(text, regional):
     """The recompiler config with what a region changes taken out: the guest
@@ -41,15 +50,16 @@ def config_shape(text, regional):
     in addresses only."""
     out, skip = [], False
     for line in text.splitlines():
-        if regional and line.startswith('# GENERATED') or line.startswith('# The PAL') or \
-                line.startswith('# where the PAL build') or line.startswith('# addresses.'):
+        if regional and (line.startswith('# GENERATED') or re.match(r"# The .+ disc's default\.xex:", line)
+                or re.match(r'# where the .+ build has the same code', line) or line.startswith('# addresses.')):
             continue
         s = line.strip()
-        if s.startswith('# PAL only (') or s.startswith('# ---- PAL ONLY ('):
+        if re.match(r'# (PAL|NTSC) only \(', s) or re.match(r'# ---- (PAL|NTSC) ONLY \(', s):
             skip = True
             continue
         if skip:
-            if s.startswith('# manual') or (s.startswith('#') and 'PAL' not in s and not s.startswith('{')):
+            if s.startswith('# manual') or (s.startswith('#') and 'PAL' not in s and 'NTSC' not in s
+                    and not s.startswith('{')):
                 skip = False
             elif s.startswith('{') or s.startswith('[[switch]]') or s.startswith('base') or s.startswith('r =') \
                     or s.startswith('default') or s.startswith('labels') or s.startswith('0x') or s in (']', ''):
@@ -71,7 +81,7 @@ def main():
     region = 'pal-es'
     if '--region' in args:
         i = args.index('--region')
-        if i + 1 >= len(args) or args[i + 1] not in ('pal-es', 'pal-de'):
+        if i + 1 >= len(args) or args[i + 1] not in ('pal-es', 'pal-de', 'ntsc-asia'):
             sys.exit(__doc__)
         region = args[i + 1]
         del args[i:i + 2]
@@ -108,8 +118,8 @@ def main():
             continue
         if ha.kind_of(addr, refs) == 'code' and names.get(addr) != table[addr]:
             fails.append(f'sub_{addr:08X} ({where}): not in {names_file.name} (or another address)')
-        if 'changed' in hows[addr]:
-            fails.append(f'{addr:#010x} ({where}): in a function the PAL build changed ({hows[addr]}): review it')
+        if 'changed' in hows[addr] and (region, addr) not in CHANGED_HOOKS:
+            fails.append(f'{addr:#010x} ({where}): in a function the regional build changed ({hows[addr]}): review it')
     for addr in table:
         if addr not in found:
             fails.append(f'{addr:#010x}: in the table but no longer in the sources (rerun survey/region_map.py table --region {region})')
@@ -132,8 +142,8 @@ def main():
 
     rt = root / 'runtime'
     hooks = ha.hooked_functions(root)
-    print(f'{region}: {len(found)} guest addresses named by the runtime, {len(table)} in the PAL table, {len(hooks)} hooked functions, '
-          f'{sum(1 for a in table if table[a] != a)} at another PAL address')
+    print(f'{region}: {len(found)} guest addresses named by the runtime, {len(table)} in the regional table, {len(hooks)} hooked functions, '
+          f'{sum(1 for a in table if table[a] != a)} at another regional address')
     originals = set()
     plain = re.compile(r'^\s*PPC_FUNC\(sub_82[0-9A-F]{6}\)\s*(\{.*)?$')
     for p in ha.sources(root):
@@ -155,9 +165,12 @@ def main():
         if addr not in table or ha.kind_of(addr, refs) == 'code':
             continue
         how = hows[addr]
-        if how.startswith('.data') or how.startswith('outside the image') or how.startswith('the image header'):
+        if how.startswith('outside the image') or how.startswith('the image header'):
             if table[addr] != addr:
                 fails.append(f'{addr:#010x}: {how}, yet at {table[addr]:#010x}')
+            continue
+        if how.startswith('.data') and table[addr] != addr and 'same bytes' not in how:
+            fails.append(f'{addr:#010x}: {how}, yet at {table[addr]:#010x}')
             continue
         for ref in sorted(refs):
             file, line_no = ref.split(' ')[0].rsplit(':', 1)
@@ -194,11 +207,12 @@ def main():
         print(r.stdout.strip())
         if r.returncode:
             fails.append('survey/region_map.py check: ' + (r.stdout + r.stderr).strip().replace('\n', '; '))
-        print(f'bytes checked at {len(table)} USA/PAL address pairs')
+        print(f'bytes checked at {len(table)} USA/regional address pairs')
 
     for f in fails:
         print('FAIL', f)
     print('region_addresses_check:', 'FAILED' if fails else 'all checks passed')
+
     sys.exit(1 if fails else 0)
 
 

@@ -76,12 +76,14 @@ and a settings menu you can open mid-race.
   police in Circuit, Sprint, Lap Knockout and Speedtrap races, in single player.
 - **USB steering wheels (experimental).** Tested with a Logitech G29 on a Mac, force feedback
   included; the steering feel is still being tuned.
-- **Two discs: USA and European (PAL) Spanish.** One app plays either; the PAL disc brings its
-  Spanish movies and police radio, and installs beside a USA install, each with its own saves.
-  The German (PAL) disc plays in a [build from source](#building-from-source) (new).
-- **Ten languages.** English, French, German, Italian, Spanish, Dutch, Swedish, Danish, Polish
-  and Finnish, from the disc's own text (Settings > Game > Language). On the USA disc the movies
-  and the speech stay in English; on the PAL disc they're Spanish.
+- **Four discs: USA, European (PAL) Spanish, German (PAL) and Asian (NTSC).** The downloads play
+  the USA and PAL Spanish discs; each installs beside another with its own saves. The German and
+  Asian discs play in a [build from source](#building-from-source) with their code (new).
+- **Eleven languages.** English, French, German, Italian, Spanish, Dutch, Swedish, Danish, Polish,
+  Finnish and Chinese (the Asian disc's), from the disc's own text (Settings > Game > Language).
+  On the USA and Asian discs the movies and the speech stay in English; on the PAL disc they're
+  Spanish. The Asian disc starts in Chinese with Chinese video subtitles; English is one setting
+  away.
 - **HDR (new).** On an HDR display (a Mac with one, SteamOS and the Steam Deck OLED with HDR on,
   or a Windows or Linux PC in HDR) the sun, headlights and lit signs go brighter than white,
   while the rest of the picture stays as it was. Off by default.
@@ -93,7 +95,7 @@ and a settings menu you can open mid-race.
   FSR 1 upscaling, a Brightness setting, up to 16x anisotropic filtering, sun shadows at up to
   twice the console's resolution and a cooler colour balance are also available.
 - **A guided installer.** It finds your disc image, checks that it is the right game, and
-  verifies all 49 files as it copies them. An interrupted install never leaves a broken game.
+  verifies every file as it copies them. An interrupted install never leaves a broken game.
 - **Your controller, or the keyboard.** Controllers work as an Xbox 360 pad, with hot-plugging
   and rumble support; with more than one connected, the one you last pressed is player 1. Every
   keyboard control can be reassigned in the settings.
@@ -137,7 +139,7 @@ belongs to its owners.</sub>
 | **Linux** (x86-64) | [Download][dl-steamos-x86_64] the x86-64 SteamOS build, `SpeedBreaker-steamos-x86_64.tar.xz`, or [build from source](#building-from-source) | Tested here on SteamOS. Players reported v0.1.1 working on Fedora 44 (GeForce GTX 1080 Ti) and Ubuntu 24.04 (Intel Arc 140T). Other setups: reports welcome. |
 | **Mac** (Apple silicon) | [Download][dl-macos]<br>`SpeedBreaker-macos.dmg` | MacBook Pro (M1 Pro) on macOS 27 and Mac Studio (M4 Max) on macOS 26; macOS 15.6 (Sequoia) in a virtual machine. There is no Intel Mac download; an Intel Mac can [build from source](#building-from-source), with MoltenVK 1.4.2 (the Khronos release, or Homebrew's `molten-vk` 1.4.2). Intel Macs are community-tested: a player's Core i7-9700K and Radeon RX 6600 XT on macOS 15.4. |
 | **iPhone** and **iPad** | [Sideload the IPA](#iphone-and-ipad) (experimental), `SpeedBreaker-<version>-ios.ipa` on the [release page][releases], or [build it yourself](#iphone-and-ipad) with Xcode | iPhone 15 Pro Max and iPhone 18 Pro Max (iOS 27). iPad Pro 12.9-inch (M2, iPadOS 27) with a Backbone Pro. Not on the App Store. Those were Xcode-signed builds: the IPA itself hasn't been installed on a device yet. |
-| **Windows** (beta) | [Download][all-releases] `SpeedBreaker-0.2.4-windows-x64-beta.zip` from the Releases page; see [Windows (beta)](#windows-beta) | Here: a laptop with Intel UHD Graphics (60 Hz). Players have reported it running on NVIDIA GeForce (GTX 1070, RTX 4090, RTX 5070 Ti) and AMD Radeon (RX 6700 XT, RX 6750 XT) graphics. Intel Arc graphics and 120/144 Hz monitors haven't been tested yet: [reports welcome](#reporting-a-bug). |
+| **Windows** (beta) | [Download][all-releases] `SpeedBreaker-0.2.5-windows-x64-beta.zip` from the Releases page; see [Windows (beta)](#windows-beta) | Here: a laptop with Intel UHD Graphics (60 Hz). Players have reported it running on NVIDIA GeForce (GTX 1070, RTX 4090, RTX 5070 Ti) and AMD Radeon (RX 6700 XT, RX 6750 XT) graphics. Intel Arc graphics and 120/144 Hz monitors haven't been tested yet: [reports welcome](#reporting-a-bug). |
 | **Android** | Coming soon | |
 
 Each link downloads the newest release. Every file and its `.sha256` checksum file are on the
@@ -148,10 +150,11 @@ should say OK. What changed in each release is in [CHANGELOG.md](CHANGELOG.md).
 
 ### System requirements
 
-- **Everyone:** a disc image of your own Xbox 360 disc, the **USA (NTSC-U)** release or the
-  **European (PAL) release with Spanish movies and speech** (see
-  [Quick start](#quick-start)), about **7.2 GB** of free space, and a display running at about
-  **60 Hz** (or 120 Hz, 180 Hz or 240 Hz on SteamOS and Linux).
+- **Everyone:** a disc image of your own Xbox 360 disc: the **USA (NTSC-U)** release, the
+  **European (PAL) release with Spanish movies and speech**, or (in a build from source with its
+  code) the **German (PAL)** or **Asian (NTSC)** release (see [Quick start](#quick-start)), about
+  **7.2 GB** of free space, and a display running at about **60 Hz** (or 120 Hz, 180 Hz or
+  240 Hz on SteamOS and Linux).
 - **Split screen:** two controllers.
 - **Smooth Motion** (up to 120 fps): a Mac with a 120 Hz screen (a ProMotion MacBook Pro or a
   120 Hz monitor), or a SteamOS or Linux PC (such as a Steam Machine) with a 120 Hz or 90 Hz
@@ -179,10 +182,12 @@ should say OK. What changed in each release is in [CHANGELOG.md](CHANGELOG.md).
 
 ## Quick start
 
-1. **Back up your own disc.** SpeedBreaker supports two versions of the game: the **USA (NTSC-U,
-   English) Xbox 360 disc** and the **European (PAL) disc with Spanish movies and speech**. The installer takes a full `.iso`, a trimmed XISO, or a folder with
-   the extracted disc files. No title update is needed. SpeedBreaker doesn't provide game files
-   or disc images, or link to them.
+1. **Back up your own disc.** SpeedBreaker supports four versions of the game: the **USA
+   (NTSC-U, English) Xbox 360 disc**, the **European (PAL) disc with Spanish movies and speech**,
+   and (in a build from source with their code) the **German (PAL)** and **Asian (NTSC)** discs.
+   The installer takes a full `.iso`, a trimmed XISO, or a folder with the extracted disc files.
+   No title update is needed. SpeedBreaker doesn't provide game files or disc images, or link to
+   them.
 2. **Get SpeedBreaker.** [Download it](#download) for Steam Deck, Steam Machine and Steam Frame
    (SteamOS), Linux, Mac or Windows (beta). On iPhone and iPad you sideload the experimental IPA or build it
    yourself. Then follow the
@@ -321,7 +326,7 @@ its name>`, e.g. `NFSMW_GPU=intel %command%` in Steam's launch options.
 
 The Windows version is a **beta**: here it has been tested on one laptop with Intel UHD
 Graphics and a 60 Hz screen, and players have reported it on NVIDIA and AMD graphics cards.
-Download `SpeedBreaker-0.2.4-windows-x64-beta.zip` from the [Releases page][all-releases],
+Download `SpeedBreaker-0.2.5-windows-x64-beta.zip` from the [Releases page][all-releases],
 right-click it, choose **Extract All**, and double-click
 `SpeedBreaker.exe` in the extracted folder (not inside the zip). SpeedBreaker isn't signed, so
 Windows may say **"Windows protected your PC"**: click **More info**, then **Run anyway**.
@@ -497,10 +502,12 @@ then Yes, puts it back.
 | Sharper UI | On / Off | On. Above 1x Internal Resolution, the menus' and the HUD's text, icons and panels are enlarged with a sharper filter instead of a blur, so they look crisper on 1440p and 4K screens. Where the finished picture is then enlarged to the screen by an uneven factor (for example 1440p to 4K), the UI's pixels also take FSR 1's edge-aware upscale and skip the anti-aliasing pass. The art, layout and colors are the game's own; at 1x on a 16:9 screen it changes nothing. |
 | Movie Upscaling | Original / Sharper | Sharper: the game's 720p movies (the intro and the cutscenes) are enlarged with a sharper, edge-aware filter: FSR 1's upscale where the movie reaches the screen at 1x, the same filter as Sharper UI above 1x, and a Lanczos filter on iPhone and iPad at 1x. Original keeps the movies as before. |
 
-**Game:** Language (English): French, German, Italian, Spanish, Dutch, Swedish, Danish, Polish or
-Finnish switch the menus and the race text (European languages show km/h) the next time the game
-starts. The text comes from the disc's own files; the movies and the speech stay in the disc's
-language (English on the USA disc, Spanish on the PAL one). The PAL disc starts in Spanish.
+**Game:** Language (English): French, German, Italian, Spanish, Dutch, Swedish, Danish, Polish,
+Finnish or Chinese switch the menus, the race text (European languages show km/h) and the video
+subtitles the next time the game starts. The text comes from the disc's own files; the movies and
+the speech stay in the disc's language (English on the USA and Asian discs, Spanish on the PAL
+one). The PAL disc starts in Spanish; the Asian disc starts in Chinese, and English switches its
+menus and subtitles to English.
 The line under the row says what your installed files give the language you choose. Not shown on
 iPhone and iPad.
 
@@ -522,10 +529,11 @@ other than the G29: both ends of its turn, each pedal, then a button for each co
 
 **Advanced:** Asynchronous Shaders (On: an object is skipped for a frame or two while its shader
 compiles, instead of the game stuttering), Performance Overlay (Off: fps, frame times, and CPU
-and GPU time per frame), **Save Bug Report**, Check for Updates at Startup (On: once at each
-launch the game asks GitHub whether a newer release is out; only the question goes out), and
-**Check for Updates** (the same question, when you press it). Nothing else goes online. The page
-also shows which build you're running.
+and GPU time per frame), Overlay Language (System: follows the device, or English or 简体中文 for
+SpeedBreaker's own menus, performance overlay and dialogs), **Save Bug Report**, Check for Updates
+at Startup (On: once at each launch the game asks GitHub whether a newer release is out; only the
+question goes out), and **Check for Updates** (the same question, when you press it). Nothing else
+goes online. The page also shows which build you're running.
 
 </details>
 
@@ -565,18 +573,20 @@ your own disc, and SpeedBreaker checks it file by file.
 **Which version of the game do I need?**
 The Xbox 360 **USA release (NTSC-U, English)** or the **European (PAL) release with Spanish
 movies and speech** (since v0.2.0). The installer checks your image and tells you which one it
-found, or that it's a different version. The **German (PAL) disc** runs in a build made from source
-with its code (`ppc-pal-de/`, [Building from source](#building-from-source) step 2); the downloads don't
-include it yet, and their installer says so. Other PAL discs, Japanese discs and re-releases have
-different code, so the installer refuses them for now. Installing one disc
-beside the other keeps both installs. Both discs hold the game's text in ten languages: pick one
-in Settings > Game > Language. Games on Demand packages aren't supported, and no title update is
+found, or that it's a different version. The **German (PAL)** and **Asian (NTSC)** discs run in a
+build made from source with their code (`ppc-pal-de/` or `ppc-ntsc-asia/`, [Building from
+source](#building-from-source) step 2); the downloads don't include them yet, and their installer
+says so. Other PAL discs, Japanese discs and re-releases have different code, so the installer
+refuses them for now. Installing one disc beside another keeps both installs. The USA, Spanish
+and German discs hold the game's text in ten languages; the Asian disc adds Chinese: pick one in
+Settings > Game > Language. The Asian disc starts in Chinese with Chinese video subtitles; choose
+English there to switch its menus and subtitles to English. Its NTSC movies and speech stay in
+English in either language. Games on Demand packages aren't supported, and no title update is
 used.
 
 **Does it work with the PC version of the game?**
-No. SpeedBreaker is built from the Xbox 360 version and installs only from the Xbox 360 USA or
-European (PAL) Spanish disc.
-PC copies of *Most Wanted*, including the Black Edition, aren't supported.
+No. SpeedBreaker is built from the Xbox 360 version and installs only from a supported Xbox 360
+disc. PC copies of *Most Wanted*, including the Black Edition, aren't supported.
 
 **Is this an emulator?**
 No. It's a static recompilation: the game's Xbox 360 code was translated ahead of time into a
@@ -592,8 +602,8 @@ No. Xbox 360 saves can't be imported, so your career starts fresh.
 **The installer refused my image. Why?**
 It always says what to do. The usual causes:
 
-- *Another game, or an unsupported version:* it isn't the USA or the European (PAL) Spanish disc.
-  The German disc is refused by a build without its code (see above).
+- *Another game, or an unsupported version:* it isn't one of the four discs SpeedBreaker knows.
+  The German and Asian discs are refused by a build without their code (see above).
 - *Truncated image:* most often a copy cut off at 4 GB by a FAT32 drive. Copy it again from your
   own backup, onto a drive that can hold files over 4 GB.
 - *Not a disc image,* a Games on Demand package, or a video-only DVD image.
@@ -666,7 +676,7 @@ SpeedBreaker folder instead: `data/`, `data/game` and `cache/`.
 2. A notice says where the zip file went: your **Desktop** (on SteamOS, pick it up in Desktop
    Mode, or in the Desktop app on a Steam Frame), the **SpeedBreaker** folder in the Files app on
    iPhone and iPad, or the data folder above when there is no Desktop. Its name says which
-   version you were running, for example `speedbreaker-bug-report-v0.2.4-<date>_<time>.zip`.
+   version you were running, for example `speedbreaker-bug-report-v0.2.5-<date>_<time>.zip`.
 3. Open an [issue][issues], attach the zip, and say what you were doing, what you expected, what
    happened, and roughly how long into the session it happened.
 
@@ -682,11 +692,12 @@ pull requests are handled.
   connected by USB through its own controller framework, which never runs the motors. Pair it
   over Bluetooth for rumble (a DualSense rumbles either way). The game says so once.
 - **Languages:** the movies and the speech (the police radio, the voices in the scenes) stay in
-  the disc's language in every language: English on the USA disc, Spanish on the PAL one. Fan
-  translations aren't supported.
+  the disc's language in every language: English on the USA and Asian discs, Spanish on the PAL
+  one. The Asian disc offers its Chinese text and subtitles; its Korean and Japanese text packs
+  aren't offered yet. Fan translations aren't supported.
 - **Discs:** only the USA and the European (PAL) Spanish discs install with the downloads; the
-  German one needs a build from source with its code ([Building from source](#building-from-source) step 2), and the
-  other PAL discs are still to come.
+  German and Asian ones need a build from source with their code ([Building from
+  source](#building-from-source) step 2), and the other PAL and Japanese discs are still to come.
 - **Smooth Motion on SteamOS and Linux:** offered only at 120 Hz and 90 Hz, and not on the Steam
   Deck, where busy scenes can't keep up and it would ghost.
 - **Steering wheels are experimental:** the steering feel is still being tuned; see
@@ -826,6 +837,15 @@ shasum -a 256 game/files-pal-de/default.xex
 # must print 23ece29d18724ea28971d52f936964d127148bd2359ff24795da7442b9069bf4
 tools/XenonRecomp/build/XenonRecomp/XenonRecomp config/pal-de/nfsmw.toml tools/XenonRecomp/XenonUtils/ppc_context.h
 python3 scripts/region_ppc.py ppc-pal-de pal_de
+
+# Optional, for the Asian (NTSC) disc too, the same way (ppc-ntsc-asia/; without it the build
+# refuses that disc). docs/REGION_NTSC_ASIA.md says how its tables were made.
+mkdir -p game/files-ntsc-asia ppc-ntsc-asia
+tools/extract-xiso/build/extract-xiso -d game/files-ntsc-asia -x /path/to/your-asian-backup.iso
+shasum -a 256 game/files-ntsc-asia/default.xex
+# must print 0cd7b9fa3957de085e298c91faa726116ad0079abaefead82c2f3337ee432e64
+tools/XenonRecomp/build/XenonRecomp/XenonRecomp config/ntsc-asia/nfsmw.toml tools/XenonRecomp/XenonUtils/ppc_context.h
+python3 scripts/region_ppc.py ppc-ntsc-asia ntsc_asia
 ```
 
 #### 3. Build

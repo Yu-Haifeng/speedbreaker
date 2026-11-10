@@ -17,6 +17,7 @@
 // up/down scrolls the notes, B goes back to the menu.
 #include <stdafx.h>
 #include "ui.h"
+#include "i18n.h"
 
 #include <update/updater.h>
 
@@ -148,7 +149,8 @@ namespace ui
                 if (r.notes.lines.empty() || r.notes.lines.front().kind != version::NoteLine::Kind::Heading)
                 {
                     PushAccentText();
-                    ImGui::TextWrapped("What's new in %s", r.label.empty() ? ("v" + r.latest).c_str() : r.label.c_str());
+                    ImGui::TextUnformatted(i18n::Format("What's new in {}",
+                        r.label.empty() ? "v" + r.latest : r.label).c_str());
                     PopAccentText();
                 }
                 if (!r.name.empty() && r.name != "v" + r.latest && r.name != r.latest)
@@ -178,11 +180,11 @@ namespace ui
                         break;
                     }
                 if (r.notes.lines.empty())
-                    ImGui::TextDisabled("This release has no notes.");
+                    ImGui::TextDisabled("%s", i18n::C("This release has no notes."));
                 else if (r.notes.truncated)
                 {
                     ImGui::Spacing();
-                    ImGui::TextDisabled("The rest is on the download page.");
+                    ImGui::TextDisabled("%s", i18n::C("The rest is on the download page."));
                 }
                 ImGui::PopTextWrapPos();
                 // The D-pad, the stick or the arrow keys scroll (the buttons keep the focus).
@@ -232,11 +234,11 @@ namespace ui
                 ImGui::BeginGroup();
                 DrawQr(qr, side);
                 ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + side);
-                ImGui::TextDisabled("No browser? Point a phone's camera at the code.");
+                ImGui::TextDisabled("%s", i18n::C("No browser? Point a phone's camera at the code."));
                 ImGui::PopTextWrapPos();
                 ImGui::EndGroup();
             }
-            ImGui::TextDisabled("Download page: %s", r.url.c_str());
+            ImGui::TextUnformatted(i18n::Format("Download page: {}", r.url).c_str());
 
             ButtonRowAtBottom();
             // Up and down are the notes' (DrawNotes scrolls with them;
@@ -247,10 +249,10 @@ namespace ui
                      ImGuiKey_UpArrow, ImGuiKey_DownArrow })
                 ImGui::SetKeyOwner(key, ImHashStr("update-notes"));
             FocusOnce("available " + r.latest);
-            bool open = ImGui::Button("Open download page");
+            bool open = ImGui::Button(i18n::C("Open download page"));
             ImGui::SameLine();
-            bool close = ImGui::Button("Close");
-            Legend("D-pad: scroll, choose   A: select   B: back");
+            bool close = ImGui::Button(i18n::C("Close"));
+            Legend(i18n::C("D-pad: scroll, choose   A: select   B: back"));
             if (open)
                 OpenPage(r.url);
             return close;
@@ -264,20 +266,20 @@ namespace ui
             ImGui::PushTextWrapPos(0.0f);
             ImGui::TextUnformatted(r.message.c_str());
             if (r.outcome == update::Outcome::Unavailable)
-                ImGui::TextDisabled("Releases: %s", update::kReleasesPage);
+                ImGui::TextUnformatted(i18n::Format("Releases: {}", update::kReleasesPage).c_str());
             ImGui::PopTextWrapPos();
             ImGui::Spacing();
             ImGui::Spacing();
             const bool failed = r.outcome != update::Outcome::UpToDate && r.outcome != update::Outcome::Unavailable;
             FocusOnce(std::format("result {}", checks));
-            bool close = ImGui::Button("OK");
+            bool close = ImGui::Button(i18n::C("OK"));
             bool retry = false;
             if (failed)
             {
                 ImGui::SameLine();
-                retry = ImGui::Button("Try again");
+                retry = ImGui::Button(i18n::C("Try again"));
             }
-            Legend(failed ? "D-pad: choose   A: select   B: back" : "A or B: back");
+            Legend(failed ? i18n::C("D-pad: choose   A: select   B: back") : i18n::C("A or B: back"));
             if (retry)
                 update::StartCheck();
             return close;
@@ -285,18 +287,18 @@ namespace ui
 
         bool DrawChecking()
         {
-            TitleText("Checking for updates");
+            TitleText(i18n::C("Checking for updates"));
             ImGui::Spacing();
             const int dots = int(ImGui::GetTime() * 2.0) % 4;
-            ImGui::Text("Asking GitHub for the newest release%.*s", dots, "...");
+            ImGui::TextUnformatted(i18n::Format("Asking GitHub for the newest release{}", std::string(size_t(dots), '.')).c_str());
             ImGui::PushTextWrapPos(0.0f);
-            ImGui::TextDisabled("It takes a few seconds at most. Only the question goes out: nothing about you or this device.");
+            ImGui::TextDisabled("%s", i18n::C("It takes a few seconds at most. Only the question goes out: nothing about you or this device."));
             ImGui::PopTextWrapPos();
             ImGui::Spacing();
             ImGui::Spacing();
             FocusOnce("checking");
-            bool close = ImGui::Button("Close");
-            Legend("A or B: back (the check carries on)");
+            bool close = ImGui::Button(i18n::C("Close"));
+            Legend(i18n::C("A or B: back (the check carries on)"));
             return close;
         }
     }
@@ -306,35 +308,36 @@ namespace ui
         static std::string text;
         update::Status status = update::GetStatus();
         if (status.phase == update::Phase::Checking)
-            return "Checking...";
+            return i18n::C("Checking...");
         if (!status.result)
-            return "Check";
+            return i18n::C("Check");
         switch (status.result->outcome)
         {
-        case update::Outcome::UpToDate: return "Up to date";
+        case update::Outcome::UpToDate: return i18n::C("Up to date");
         case update::Outcome::Available:
-            text = status.result->label + " is out";
+            text = i18n::Format("{} is out", status.result->label);
             return text.c_str();
         case update::Outcome::Offline:
-        case update::Outcome::Timeout: return "Couldn't check (offline)";
-        case update::Outcome::RateLimited: return "Couldn't check (limit)";
-        default: return "Couldn't check";
+        case update::Outcome::Timeout: return i18n::C("Couldn't check (offline)");
+        case update::Outcome::RateLimited: return i18n::C("Couldn't check (limit)");
+        default: return i18n::C("Couldn't check");
         }
     }
 
     void UpdateRowHelp()
     {
-        ImGui::TextWrapped("Asks GitHub whether a newer " SB_APP_NAME " is out, and sends nothing but the question. With Check for "
-                           "Updates at Startup on, the game also asks once at each launch.");
+        ImGui::TextWrapped("%s", i18n::C("Asks GitHub whether a newer " SB_APP_NAME " is out, and sends nothing but the question. "
+            "With Check for Updates at Startup on, the game also asks once at each launch."));
         update::Status status = update::GetStatus();
         if (status.phase == update::Phase::Checking)
-            ImGui::TextDisabled("Checking...");
+            ImGui::TextDisabled("%s", i18n::C("Checking..."));
         else if (!status.result)
-            ImGui::TextDisabled("This version: v%s", update::RunningVersion().c_str());
+            ImGui::TextUnformatted(i18n::Format("This version: v{}", update::RunningVersion()).c_str());
         else if (status.result->outcome == update::Outcome::Available)
         {
             PushAccentText();
-            ImGui::Text("%s (you have v%s)", status.result->headline.c_str(), status.result->current.c_str());
+            ImGui::TextUnformatted(i18n::Format("{} (you have v{})", status.result->headline,
+                status.result->current).c_str());
             PopAccentText();
         }
         else if (status.result->outcome == update::Outcome::UpToDate)

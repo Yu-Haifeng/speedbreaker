@@ -6,6 +6,7 @@
 // menu (the 360's Guide), and goes on when it closes.
 #include <stdafx.h>
 #include "ui.h"
+#include "i18n.h"
 
 #include <kernel/xam.h>
 
@@ -51,18 +52,18 @@ namespace ui
                 ImGui::End();
                 return;
             }
-            TitleText(notice.title.c_str());
+            TitleText(i18n::C(notice.title.c_str()));
             ImGui::Spacing();
             ImGui::PushTextWrapPos(0.0f);
-            ImGui::TextWrapped("%s", notice.text.c_str());
+            ImGui::TextWrapped("%s", i18n::C(notice.text.c_str()));
             ImGui::PopTextWrapPos();
             ImGui::Spacing();
             if (notice.firstFrame)
                 ImGui::SetKeyboardFocusHere();
-            bool ok = ImGui::Button("OK");
+            bool ok = ImGui::Button(i18n::C("OK"));
             ImGui::SameLine();
             {
-                const char* legend = "A or B: close";
+                const char* legend = i18n::C("A or B: close");
                 float w = ImGui::CalcTextSize(legend).x;
                 ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - w));
                 ImGui::TextDisabled("%s", legend);

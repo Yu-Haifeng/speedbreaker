@@ -109,7 +109,7 @@ namespace
         static std::atomic<uint64_t> seen{ 0 };
         if (id >= 64 || (seen.fetch_or(1ull << id) & (1ull << id)))
             return;
-        uint32_t target = ByteSwap(*static_cast<const uint32_t*>(g_memory.Translate(0x82C3F590 + id * 384 + 368)));
+        uint32_t target = ByteSwap(*static_cast<const uint32_t*>(g_memory.Translate(region::Addr(0x82C3F590) + id * 384 + 368)));
         uint32_t w = 0, h = 0;
         if (target)
         {

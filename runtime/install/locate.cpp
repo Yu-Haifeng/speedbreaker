@@ -2,13 +2,16 @@
 #include "locate.h"
 #include "installer.h"
 #include "placement.h"
+#include "sha256.h"
 
 #include <user/paths.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdio>
 #include <cstdlib>
 #include <format>
+#include <fstream>
 #include <set>
 
 #ifdef _WIN32
@@ -49,9 +52,40 @@ namespace install
         }
 #endif
 
+        bool KnownXexSize(uint64_t size)
+        {
+            for (const Manifest* m : GameManifests())
+                if (m->Xex().size == size)
+                    return true;
+            return false;
+        }
+
+        // The default.xex's SHA-256, streamed. Only the one size two regions
+        // share needs this.
+        std::optional<std::string> XexHash(const fs::path& xex)
+        {
+            std::ifstream f(xex, std::ios::binary);
+            if (!f)
+                return std::nullopt;
+            Sha256 sha;
+            std::array<char, 1 << 20> buffer;
+            while (f)
+            {
+                f.read(buffer.data(), buffer.size());
+                if (f.gcount() > 0)
+                    sha.Update(buffer.data(), size_t(f.gcount()));
+            }
+            if (f.bad())
+                return std::nullopt;
+            return ToHex(sha.Finish());
+        }
+
         // default.xex in `dir` with the manifest's size (and, if asked, the
         // current marker beside it), as spelled on disk. For a compiled-in
-        // manifest, any region's: `used` (if given) says which.
+        // manifest, any region's: `used` (if given) says which. A size only
+        // one region has is enough; a size two share is told apart by hashing
+        // default.xex itself. A marker records what was installed, but can't
+        // identify a file that was replaced afterwards.
         std::optional<fs::path> UsableXex(const fs::path& dir, bool requireMarker, const Manifest& requested,
             const Manifest** used = nullptr)
         {
@@ -78,7 +112,15 @@ namespace install
             uint64_t size = fs::file_size(xex, ec);
             if (ec)
                 return std::nullopt;
-            const Manifest& manifest = Pick(requested, ManifestForXexSize(size));
+            const Manifest* detected = nullptr;
+            if (IsGameManifest(requested))
+            {
+                detected = ManifestForXexSize(size);
+                if (!detected && KnownXexSize(size))
+                    if (std::optional<std::string> hash = XexHash(xex))
+                        detected = ManifestForXexHash(*hash);
+            }
+            const Manifest& manifest = Pick(requested, detected);
             if (size != manifest.Xex().size)
                 return std::nullopt;
             if (requireMarker && ReadInstallMarker(dir) != std::optional<std::string>(manifest.version))
@@ -155,6 +197,21 @@ namespace install
         return UsableXex(dir, requireMarker, manifest).has_value();
     }
 
+    const Manifest* ManifestForXexFile(const std::filesystem::path& xex)
+    {
+        std::error_code ec;
+        uint64_t size = fs::file_size(xex, ec);
+        if (ec)
+            return nullptr;
+        if (const Manifest* unique = ManifestForXexSize(size))
+            return unique;
+        if (!KnownXexSize(size))
+            return nullptr;
+        if (std::optional<std::string> hash = XexHash(xex))
+            return ManifestForXexHash(*hash);
+        return nullptr;
+    }
+
     std::optional<GameInstall> FindGameInstall(const Manifest& requested)
     {
         const Manifest* manifest = &requested;
@@ -163,8 +220,10 @@ namespace install
             if (std::optional<fs::path> xex = UsableXex(env, false, requested, &manifest))
                 return Found(env, *xex, InstallOrigin::Environment, *manifest);
             std::string sizes;
+            std::set<uint64_t> seen;
             for (const Manifest* m : IsGameManifest(requested) ? GameManifests() : std::span<const Manifest* const>(&manifest, 1))
-                sizes += std::format("{}{}", sizes.empty() ? "" : " or ", m->Xex().size);
+                if (seen.insert(m->Xex().size).second)
+                    sizes += std::format("{}{}", sizes.empty() ? "" : " or ", m->Xex().size);
             fprintf(stderr, "[install] NFSMW_GAME_DIR=%s has no default.xex of %s bytes; ignoring it\n", env, sizes.c_str());
         }
         if (std::optional<fs::path> xex = UsableXex("game/files", false, requested, &manifest))
@@ -182,7 +241,8 @@ namespace install
             fs::file_status status = fs::status(*recorded, ec);
             std::string why = status.type() == fs::file_type::not_found ? "isn't there now (a drive not connected?)"
                 : ec ? std::format("can't be read ({})", ec.message())
-                     : "isn't a current install (files missing, or an older version)";
+                     : std::format("isn't a current install (marker {}, files missing, or an older version)",
+                         ReadInstallMarker(*recorded).value_or("missing"));
             fprintf(stderr, "[install] the game was installed in %s, which %s\n", recorded->string().c_str(), why.c_str());
         }
 
@@ -197,8 +257,11 @@ namespace install
         {
             std::optional<std::string> marker = ReadInstallMarker(user);
             std::string versions;
+            std::set<std::string_view> seen;
             for (const Manifest* m : IsGameManifest(requested) ? GameManifests() : std::span<const Manifest* const>(&manifest, 1))
-                versions += std::format("{}{} ({})", versions.empty() ? "" : " or ", m->version, m->region.empty() ? "test" : m->region);
+                if (seen.insert(m->version).second)
+                    versions += std::format("{}{} ({})", versions.empty() ? "" : " or ", m->version,
+                        m->region.empty() ? "test" : m->region);
             fprintf(stderr, "[install] %s is not a current install (marker %s, manifest %s): reinstall\n",
                 user.string().c_str(), marker ? marker->c_str() : "missing", versions.c_str());
         }

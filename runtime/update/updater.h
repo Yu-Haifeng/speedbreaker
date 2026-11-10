@@ -55,6 +55,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 
 namespace update
 {
@@ -100,6 +101,7 @@ namespace update
     void Tick();
 
     // "Update to v0.2.5" ("Update to v0.2.4 beta 7") while the last check
-    // found a newer version; "" otherwise.
-    std::string FooterLabel();
+    // found a newer version; "" otherwise. The UI can pass its translated
+    // "Update to {}" pattern; logs keep the English default.
+    std::string FooterLabel(std::string_view pattern = "Update to {}");
 }

@@ -10,6 +10,7 @@
 #include <cpu/guest_time.h>
 #include <game/split_screen.h>
 #include <kernel/function.h>
+#include <region/region.h>
 #include <ui/ui.h>
 #include <user/settings.h>
 #include <user/key_names.h>
@@ -239,7 +240,7 @@ namespace
         uint8_t* base = g_memory.base;
         if (!base)
             return -1;
-        const uint32_t stepper = PPC_LOAD_U32(0x82A2CB6C);
+        const uint32_t stepper = PPC_LOAD_U32(region::Addr(0x82A2CB6C));
         return stepper ? double(PPC_LOAD_U32(stepper + 40)) : -1.0;
     }
 

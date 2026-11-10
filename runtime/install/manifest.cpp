@@ -4,12 +4,16 @@
 #include <cassert>
 #include <iterator>
 
-// The German disc's list is always checked (static_asserts below), but it is a
-// game manifest only in a build that links the German code (SB_PAL_DE,
-// runtime/CMakeLists.txt): without it, that disc is refused up front
-// (ReleaseWithoutCode) rather than installed and then not run.
+// The German and Asian discs' lists are always checked (static_asserts
+// below), but each is a game manifest only in a build that links its code
+// (SB_PAL_DE, SB_NTSC_ASIA; runtime/CMakeLists.txt): without it, that disc is
+// refused up front (ReleaseWithoutCode) rather than installed and then not
+// run.
 #ifndef SB_PAL_DE
 #define SB_PAL_DE 0
+#endif
+#ifndef SB_NTSC_ASIA
+#define SB_NTSC_ASIA 0
 #endif
 
 namespace install
@@ -37,6 +41,12 @@ namespace install
 #include "manifest_pal_de.inc"
             };
         }
+        namespace ntsc_asia
+        {
+            constexpr ManifestFile s_files[] = {
+#include "manifest_ntsc_asia.inc"
+            };
+        }
 #undef MANIFEST_INFO
 #undef MANIFEST_FILE
 
@@ -57,6 +67,10 @@ namespace install
         namespace pal_de
         {
 #include "manifest_pal_de.inc"
+        }
+        namespace ntsc_asia
+        {
+#include "manifest_ntsc_asia.inc"
         }
 #undef MANIFEST_INFO
 #undef MANIFEST_FILE
@@ -86,20 +100,29 @@ namespace install
         static_assert(std::size(pal_es::s_files) == pal_es::s_count, "manifest_pal_es.inc: file count does not match MANIFEST_INFO");
         static_assert(SumSizes(pal_es::s_files) == pal_es::s_bytes, "manifest_pal_es.inc: sizes do not add up to MANIFEST_INFO's total");
         static_assert(XexOf(pal_es::s_files), "manifest_pal_es.inc: no default.xex entry");
-        // The regions are told apart by default.xex (hash, or size where no
-        // hashing is done) and by the version an install's marker records.
+        // The regions are told apart by default.xex's hash and by the version
+        // an install's marker records. Sizes need not differ: the Asian
+        // executable is the same size as the Spanish one, so a place that
+        // identifies an install by size alone has to hash that size.
         static_assert(XexOf(usa::s_files)->sha256 != XexOf(pal_es::s_files)->sha256, "two regions with one default.xex");
-        static_assert(XexOf(usa::s_files)->size != XexOf(pal_es::s_files)->size, "two regions' default.xex of one size");
         static_assert(usa::s_version != pal_es::s_version, "two regions with one manifest version");
         static_assert(std::size(pal_de::s_files) == pal_de::s_count, "manifest_pal_de.inc: file count does not match MANIFEST_INFO");
         static_assert(SumSizes(pal_de::s_files) == pal_de::s_bytes, "manifest_pal_de.inc: sizes do not add up to MANIFEST_INFO's total");
         static_assert(XexOf(pal_de::s_files), "manifest_pal_de.inc: no default.xex entry");
         static_assert(XexOf(pal_de::s_files)->sha256 != XexOf(usa::s_files)->sha256
             && XexOf(pal_de::s_files)->sha256 != XexOf(pal_es::s_files)->sha256, "two regions with one default.xex");
-        static_assert(XexOf(pal_de::s_files)->size != XexOf(usa::s_files)->size
-            && XexOf(pal_de::s_files)->size != XexOf(pal_es::s_files)->size, "two regions' default.xex of one size");
         static_assert(pal_de::s_version != usa::s_version && pal_de::s_version != pal_es::s_version,
             "two regions with one manifest version");
+        static_assert(std::size(ntsc_asia::s_files) == ntsc_asia::s_count,
+            "manifest_ntsc_asia.inc: file count does not match MANIFEST_INFO");
+        static_assert(SumSizes(ntsc_asia::s_files) == ntsc_asia::s_bytes,
+            "manifest_ntsc_asia.inc: sizes do not add up to MANIFEST_INFO's total");
+        static_assert(XexOf(ntsc_asia::s_files), "manifest_ntsc_asia.inc: no default.xex entry");
+        static_assert(XexOf(ntsc_asia::s_files)->sha256 != XexOf(usa::s_files)->sha256
+            && XexOf(ntsc_asia::s_files)->sha256 != XexOf(pal_es::s_files)->sha256
+            && XexOf(ntsc_asia::s_files)->sha256 != XexOf(pal_de::s_files)->sha256, "two regions with one default.xex");
+        static_assert(ntsc_asia::s_version != usa::s_version && ntsc_asia::s_version != pal_es::s_version
+            && ntsc_asia::s_version != pal_de::s_version, "two regions with one manifest version");
 
         constexpr Manifest s_usa{ usa::s_version, usa::s_titleId, usa::s_files, usa::s_bytes, "usa", "USA" };
         constexpr Manifest s_palEs{ pal_es::s_version, pal_es::s_titleId, pal_es::s_files, pal_es::s_bytes, "pal-es",
@@ -107,10 +130,20 @@ namespace install
 #if SB_PAL_DE
         constexpr Manifest s_palDe{ pal_de::s_version, pal_de::s_titleId, pal_de::s_files, pal_de::s_bytes, "pal-de",
             "Europe (PAL, German)" };
-        constexpr const Manifest* s_manifests[] = { &s_usa, &s_palEs, &s_palDe };
-#else
-        constexpr const Manifest* s_manifests[] = { &s_usa, &s_palEs };
 #endif
+#if SB_NTSC_ASIA
+        constexpr Manifest s_ntscAsia{ ntsc_asia::s_version, ntsc_asia::s_titleId, ntsc_asia::s_files,
+            ntsc_asia::s_bytes, "ntsc-asia", "Asia (NTSC)" };
+#endif
+        constexpr const Manifest* s_manifests[] = {
+            &s_usa, &s_palEs,
+#if SB_PAL_DE
+            &s_palDe,
+#endif
+#if SB_NTSC_ASIA
+            &s_ntscAsia,
+#endif
+        };
 
         char Lower(char c)
         {
@@ -171,10 +204,15 @@ namespace install
 
     const Manifest* ManifestForXexSize(uint64_t size)
     {
+        const Manifest* found = nullptr;
         for (const Manifest* m : s_manifests)
             if (m->Xex().size == size)
-                return m;
-        return nullptr;
+            {
+                if (found)
+                    return nullptr;  // two regions' executables of one size: hash it
+                found = m;
+            }
+        return found;
     }
 
     const Manifest* ManifestForVersion(std::string_view version)
@@ -190,6 +228,10 @@ namespace install
 #if !SB_PAL_DE
         if (sha256 == XexOf(pal_de::s_files)->sha256)
             return { "Europe (PAL, German)", "German (PAL)", "ppc-pal-de" };
+#endif
+#if !SB_NTSC_ASIA
+        if (sha256 == XexOf(ntsc_asia::s_files)->sha256)
+            return { "Asia (NTSC)", "Asian (NTSC)", "ppc-ntsc-asia" };
 #endif
         (void)sha256;
         return {};

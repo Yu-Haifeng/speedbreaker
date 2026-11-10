@@ -3,18 +3,19 @@
 // The known-good discs: every file's disc-relative path, size and SHA-256,
 // generated from a verified dump by scripts/gen_install_manifest.py, one per
 // supported release (region): manifest.inc (USA), manifest_pal_es.inc
-// (Europe, the PAL disc with Spanish speech and movies) and manifest_pal_de.inc
-// (Europe, the German PAL disc; compiled in only by a build that links its
-// code, SB_PAL_DE: a build without it refuses that disc up front,
-// ReleaseWithoutCode). Each region's code is
-// recompiled from that one default.xex, so its hash doubles as the
-// supported-version check and says which region a disc or install is (the
-// title ID is the same in all).
+// (Europe, the PAL disc with Spanish speech and movies), manifest_pal_de.inc
+// (Europe, the German PAL disc) and manifest_ntsc_asia.inc (Asia). The last
+// two are compiled in only by a build that links their code (SB_PAL_DE,
+// SB_NTSC_ASIA): a build without it refuses that disc up front
+// (ReleaseWithoutCode). Each region's code is recompiled from that one
+// default.xex, so its hash doubles as the supported-version check and says
+// which region a disc or install is (the title ID is the same in all; the
+// Asian executable has the Spanish one's size, so a size alone is not enough).
 //
 // A compiled-in manifest (GameManifests()) passed to the installer's functions
-// stands for all of them: they take the region the files themselves say
-// (default.xex's hash or size, the install marker). A test's own manifest is
-// taken as it is.
+// stands for all of them: they take the region from default.xex's hash or
+// unique size; the marker separately records an install's manifest version.
+// A test's own manifest is taken as it is.
 #pragma once
 #include <cstddef>
 #include <cstdint>
@@ -36,8 +37,8 @@ namespace install
         uint32_t titleId;           // from default.xex's execution info (0x454107D9)
         std::span<const ManifestFile> files;
         uint64_t totalBytes;
-        std::string_view region = {};      // "usa", "pal-es", "pal-de": recorded in the install marker
-        std::string_view regionName = {};  // for the player: "USA", "Europe (PAL, Spanish)", "Europe (PAL, German)"
+        std::string_view region = {};      // "usa", "pal-es", "pal-de", "ntsc-asia": recorded in the install marker
+        std::string_view regionName = {};  // for the player: "USA", "Europe (PAL, ...)", "Asia (NTSC)"
 
         // The default.xex entry (the one file every manifest must have).
         const ManifestFile& Xex() const;
@@ -49,8 +50,9 @@ namespace install
     // files; they all take a Manifest so tests can pass a small one instead.
     const Manifest& GameManifest();
 
-    // Every compiled-in manifest, USA first. Their default.xex hashes, sizes
-    // and versions all differ (static_asserts in manifest.cpp).
+    // Every compiled-in manifest, USA first. Their default.xex hashes and
+    // versions all differ (static_asserts in manifest.cpp); two may have the
+    // same size (Spain and Asia).
     std::span<const Manifest* const> GameManifests();
     bool IsGameManifest(const Manifest& manifest);  // one of GameManifests()
 
@@ -61,11 +63,11 @@ namespace install
     const Manifest* ManifestForVersion(std::string_view version);
 
     // A release SpeedBreaker supports whose code this build doesn't link
-    // (the German disc without SB_PAL_DE), by its default.xex SHA-256: its
-    // region name ("Europe (PAL, German)"), the disc's name in the installer's
-    // refusal ("German (PAL)": "the German (PAL) disc") and the folder its
-    // code is generated into ("ppc-pal-de"). Empty when the hash is none of
-    // those.
+    // (the German disc without SB_PAL_DE, the Asian one without
+    // SB_NTSC_ASIA), by its default.xex SHA-256: its region name ("Asia
+    // (NTSC)"), the disc's name in the installer's refusal ("Asian (NTSC)":
+    // "the Asian (NTSC) disc") and the folder its code is generated into
+    // ("ppc-ntsc-asia"). Empty when the hash is none of those.
     struct ReleaseWithoutCodeInfo
     {
         std::string_view regionName;

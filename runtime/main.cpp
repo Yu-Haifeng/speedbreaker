@@ -292,16 +292,13 @@ namespace
 // The installed disc's release, before settings load: a PAL disc's own
 // language (Spanish, German) is the Language row's default there (a
 // settings.toml a save wrote keeps the language it holds). Cheap: the
-// installs' default.xex sizes (install/locate.h).
+// installs' default.xex sizes; a size two regions share is hashed
+// (install/locate.h).
 static void SetReleaseDefaults(int argc, char** argv)
 {
     const install::Manifest* manifest = nullptr;
     if (argc > 1)
-    {
-        std::error_code ec;
-        uint64_t size = std::filesystem::file_size(argv[1], ec);
-        manifest = ec ? nullptr : install::ManifestForXexSize(size);
-    }
+        manifest = install::ManifestForXexFile(argv[1]);
     else if (std::optional<install::GameInstall> game = install::FindGameInstall())
         manifest = game->manifest;
     if (!manifest)

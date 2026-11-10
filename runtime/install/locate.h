@@ -33,7 +33,7 @@ namespace install
         std::filesystem::path xex;
         InstallOrigin origin = InstallOrigin::User;
         bool marker = false;            // holds Install's marker for the current manifest
-        const Manifest* manifest = nullptr;  // the region it is (for a compiled-in manifest, the one whose default.xex size it has)
+        const Manifest* manifest = nullptr;  // the region it is (for a compiled-in manifest, the one its default.xex says)
     };
 
     // The first usable game directory of:
@@ -49,7 +49,8 @@ namespace install
     // (RecoverInterruptedInstall).
     // A compiled-in manifest (the default) finds any region's install: the
     // first location with one is used, and `manifest` says which it is.
-    // Cheap: a few stat calls and one small read; no hashing.
+    // A unique executable size needs only stat calls; a shared size streams
+    // default.xex once to identify its region, even when the marker has a hash.
     std::optional<GameInstall> FindGameInstall(const Manifest& manifest = GameManifest());
 
     // The region of the installer's own install in `dir`: its marker (any
@@ -58,11 +59,16 @@ namespace install
     // there (nothing, another folder, a hand-extracted one, an unknown
     // default.xex). Install would replace such a folder whatever region it
     // is; install/placement.h's KeepOtherRegion uses this so a disc of
-    // another region goes beside it instead. A few stat calls and one small read.
+    // another region goes beside it instead. default.xex itself is hashed
+    // when two regions share its size.
     const Manifest* InstalledRegion(const std::filesystem::path& dir);
 
     // The same check for one directory.
     bool IsUsableInstall(const std::filesystem::path& dir, bool requireMarker, const Manifest& manifest = GameManifest());
+
+    // The region an XEX file is, by size (when one region has it) or, when
+    // two share it, by SHA-256. nullptr: not a supported executable.
+    const Manifest* ManifestForXexFile(const std::filesystem::path& xex);
 
     // Where the player chose to install when it wasn't DefaultInstallPath()
     // (an SD card, a USB drive): recorded in GetUserPath()/game-location by

@@ -5,6 +5,7 @@
 // side of rendering) and of the GPU.
 #include <stdafx.h>
 #include "ui.h"
+#include "i18n.h"
 
 #include <gpu/renderer.h>
 
@@ -62,10 +63,10 @@ namespace ui
             }
             float average = n ? sum / n : 0.0f;
             PushAccentText();
-            ImGui::Text("%.0f fps", average > 0 ? 1000.0f / average : 0.0f);
+            ImGui::TextUnformatted(i18n::Format("{:.0f} fps", average > 0 ? 1000.0f / average : 0.0f).c_str());
             PopAccentText();
             ImGui::SameLine();
-            ImGui::TextDisabled("%.1f ms  (worst %.1f)", average, worst);
+            ImGui::TextUnformatted(i18n::Format("{:.1f} ms  (worst {:.1f})", average, worst).c_str());
 
             // Oldest first, for the plot.
             float ordered[kHistory];
@@ -77,8 +78,8 @@ namespace ui
             ImGui::Spacing();
 
             gpu::renderer::PerfNumbers perf = gpu::renderer::GetPerfNumbers();
-            ImGui::TextDisabled("CPU render %.1f ms   GPU %.1f ms", perf.cpMs, perf.gpuMs);
-            ImGui::TextDisabled("%.0f draws per frame", perf.draws);
+            ImGui::TextUnformatted(i18n::Format("CPU render {:.1f} ms   GPU {:.1f} ms", perf.cpMs, perf.gpuMs).c_str());
+            ImGui::TextUnformatted(i18n::Format("{:.0f} draws per frame", perf.draws).c_str());
         }
         ImGui::End();
         ImGui::PopFont();

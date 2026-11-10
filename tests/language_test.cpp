@@ -37,13 +37,14 @@ using namespace game::language;
 
 namespace
 {
-    // The game's language table (0x828FF000 in the USA default.xex, 10
-    // records of 20 bytes: index, name, LANGUAGES\<NAME>.BIN, ...), copied
-    // from the image in its order.
+    // The games' language tables (0x828FF000 in the USA default.xex, 10
+    // records of 20 bytes; the Asian one at 0x828FF150 adds CHINESE as its
+    // 11th): index, name, LANGUAGES\<NAME>.BIN, ... .
     struct GameEntry { int32_t index; const char* name; };
     constexpr GameEntry kGameTable[] = {
         { 0, "ENGLISH" }, { 1, "FRENCH" }, { 2, "GERMAN" }, { 3, "ITALIAN" }, { 4, "SPANISH" },
         { 5, "DUTCH" }, { 6, "SWEDISH" }, { 12, "POLISH" }, { 13, "FINNISH" }, { 7, "DANISH" },
+        { 9, "CHINESE" },
     };
 
     // Callers of SetCurrentLanguage (the boot, the debug cycling's, the
@@ -105,7 +106,7 @@ namespace
 
     void TestTable()
     {
-        CHECK(std::size(kLanguages) == 10, "ten languages, %zu", std::size(kLanguages));
+        CHECK(std::size(kLanguages) == 11, "eleven languages, %zu", std::size(kLanguages));
         CHECK(kLanguages[0].id == kEnglish && std::string_view(kLanguages[0].token) == "english", "English first (the fallback's)");
         std::set<int32_t> ids;
         for (const GameEntry& g : kGameTable)
@@ -127,8 +128,8 @@ namespace
             CHECK(speech == l->speech, "%d: speech code %s", g.index, l->speech);
             ids.insert(l->id);
         }
-        CHECK(ids == std::set<int32_t>({ 0, 1, 2, 3, 4, 5, 6, 7, 12, 13 }), "the ten values 0-7, 12, 13");
-        for (int32_t id : { -1, 8, 9, 10, 11, 14, 100 })
+        CHECK(ids == std::set<int32_t>({ 0, 1, 2, 3, 4, 5, 6, 7, 9, 12, 13 }), "the eleven values 0-7, 9, 12, 13");
+        for (int32_t id : { -1, 8, 10, 11, 14, 100 })
             CHECK(Find(id) == nullptr, "%d is not a language", id);
     }
 
@@ -333,6 +334,7 @@ namespace
         CHECK(times == 1, "the Language row says \"next launch\" once, not %zu times:\n%s", times, block.c_str());
         // Not a language: numbers and unknown words are refused.
         CHECK(Set(Id::GameLanguage, 8) == SetResult::Invalid, "8 is no language");
+        CHECK(Set(Id::GameLanguage, 9) != SetResult::Invalid, "9 (Chinese) is");
         CHECK(Set(Id::GameLanguage, 12) != SetResult::Invalid, "12 (Polish) is");
         for (const char* bad : { "4", "\"4\"", "\"klingon\"", "\"pal\"" })
         {
@@ -407,8 +409,13 @@ namespace
     // and speech. And each disc's default language (main.cpp).
     void TestGermanDisc()
     {
-        CHECK(DiscLanguage("pal-de") == kGerman && DiscLanguage("pal-es") == kSpanish && DiscLanguage("usa") == -1
-            && DiscLanguage("") == -1, "DiscLanguage");
+        CHECK(DiscLanguage("pal-de") == kGerman && DiscLanguage("pal-es") == kSpanish && DiscLanguage("ntsc-asia") == kChinese
+            && DiscLanguage("usa") == -1 && DiscLanguage("") == -1, "DiscLanguage");
+        // The Asian executable boots in Chinese (9): Chinese is its default,
+        // English replaces it at the boot's call, and no other caller changes.
+        CHECK(BootLanguageFor(kBootCall, 9, kChinese, true) == kChinese
+            && BootLanguageFor(kBootCall, 9, kEnglish, true) == kEnglish
+            && BootLanguageFor(kMovieNameCall, 9, kEnglish, true) == 9, "the Asian boot language");
         CHECK(Find(kGerman) && std::string_view(Find(kGerman)->speech) == "ge", "German has its own speech bank");
         std::vector<uint8_t> index;
         PutHash(index, ArchiveHash("SOUND\\SPEECH\\COPSPEECH_GE.BIG"));
@@ -435,6 +442,32 @@ namespace
             for (const Language& l : kLanguages)
                 CHECK(BootLanguageFor(lr, kGerman, l.id, true) == (lr == kBootCall ? l.id : kGerman), "German boot %s lr %08X", l.token, lr);
     }
+
+    // The Asian (NTSC) disc: its text and video subtitles are Chinese, its
+    // movies and speech English.
+    void TestAsianDisc()
+    {
+        std::vector<uint8_t> index;
+        PutHash(index, ArchiveHash("SOUND\\SPEECH\\COPSPEECH_EN.BIG"));
+        for (const Language& l : kLanguages)
+            PutHash(index, ArchiveHash(std::string("LANGUAGES\\") + l.disc + ".BIN"));
+        const std::vector<std::string> movies = UsaMovies();
+
+        Files zh = Scan(L(kChinese), movies, index);
+        CHECK(zh.text && !zh.pal && !zh.ownMovies && zh.englishMovies && zh.speech, "Chinese on the Asian disc");
+        CHECK(Note(L(kChinese), zh) == "Menus and race text in Chinese. Movies and speech in English.", "%s",
+            Note(L(kChinese), zh).c_str());
+        CHECK(LogLine(L(kChinese), zh) == "[language] Chinese (chinese): text yes; movies English (_ntsc); "
+            "speech English (copspeech_en present)", "%s", LogLine(L(kChinese), zh).c_str());
+        CHECK(MovieSuffix(kMovieNameCall, kNtscSuffix, zh.pal) == kNtscSuffix, "Chinese keeps _ntsc");
+
+        CHECK(DiscLanguage("ntsc-asia") == kChinese, "the Asian disc starts in Chinese");
+        for (uint32_t lr : kCallers)
+        {
+            CHECK(BootLanguageFor(lr, 9, kChinese, true) == (lr == kBootCall ? kChinese : 9), "Asian boot, Chinese, lr %08X", lr);
+            CHECK(BootLanguageFor(lr, 9, kEnglish, true) == (lr == kBootCall ? kEnglish : 9), "Asian boot, English, lr %08X", lr);
+        }
+    }
 }
 
 int main()
@@ -447,6 +480,7 @@ int main()
     TestFiles();
     TestPalDisc();
     TestGermanDisc();
+    TestAsianDisc();
 
 #ifdef _WIN32
     // Windows has no mkdtemp (settings_keys_test's way): a folder named

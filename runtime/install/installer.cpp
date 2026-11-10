@@ -936,28 +936,35 @@ namespace install
         return GetUserPath() / "game";
     }
 
+    namespace
+    {
+        std::optional<std::string> ReadMarkerValue(const std::filesystem::path& dir, std::string_view key)
+        {
+            // A few lines of text: read no more than that from whatever file
+            // happens to have the name.
+            std::ifstream f(dir / kInstallMarker, std::ios::binary);
+            char text[4096];
+            f.read(text, sizeof(text));
+            std::string_view content(text, size_t(std::max<std::streamsize>(f.gcount(), 0)));
+            while (!content.empty())
+            {
+                // <key> = "<value>"
+                size_t end = content.find('\n');
+                std::string_view line = content.substr(0, end);
+                content = end == std::string_view::npos ? std::string_view() : content.substr(end + 1);
+                if (!line.starts_with(key))
+                    continue;
+                size_t first = line.find('"'), last = line.rfind('"');
+                if (first == std::string_view::npos || last <= first)
+                    return std::nullopt;
+                return std::string(line.substr(first + 1, last - first - 1));
+            }
+            return std::nullopt;
+        }
+    }
+
     std::optional<std::string> ReadInstallMarker(const std::filesystem::path& dir)
     {
-        // A few lines of text: read no more than that from whatever file
-        // happens to have the name.
-        std::ifstream f(dir / kInstallMarker, std::ios::binary);
-        char text[4096];
-        f.read(text, sizeof(text));
-        std::string_view content(text, size_t(std::max<std::streamsize>(f.gcount(), 0)));
-        constexpr std::string_view key = "manifest_version";
-        while (!content.empty())
-        {
-            // manifest_version = "<version>"
-            size_t end = content.find('\n');
-            std::string_view line = content.substr(0, end);
-            content = end == std::string_view::npos ? std::string_view() : content.substr(end + 1);
-            if (!line.starts_with(key))
-                continue;
-            size_t first = line.find('"'), last = line.rfind('"');
-            if (first == std::string_view::npos || last <= first)
-                return std::nullopt;
-            return std::string(line.substr(first + 1, last - first - 1));
-        }
-        return std::nullopt;
+        return ReadMarkerValue(dir, "manifest_version");
     }
 }

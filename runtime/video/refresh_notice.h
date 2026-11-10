@@ -41,7 +41,7 @@
 #include "refresh_fit.h"
 
 #include <cmath>
-#include <cstdio>
+#include <format>
 #include <string>
 
 namespace video
@@ -132,20 +132,28 @@ namespace video
 
         static constexpr const char* kTitle = "Screen refresh rate";
 
-        // What it says.
+        // One complete format string per platform wording. The presenter
+        // translates this pattern before filling in the rate, so the notice
+        // renderer doesn't have to recognize an already-formatted string.
+        static const char* Pattern(const Inputs& in)
+        {
+            if (in.platform == Platform::GameMode && !in.externalScreen)
+                return "This screen is running at {} Hz, which doesn't divide 60 fps evenly, so motion can stutter. For smooth play, "
+                    "set Refresh Rate to 60 Hz in Quick Access > Performance. Turn on Use per-game profile there and Steam keeps it "
+                    "for this game.";
+            if (in.platform == Platform::GameMode)
+                return "This screen is running at {} Hz, which doesn't divide 60 fps evenly, so motion can stutter. For smooth play, "
+                    "set the screen to 60 or 120 Hz in Steam's display settings, or turn on variable refresh if it has it.";
+            return "This screen is running at {} Hz, which doesn't divide 60 fps evenly, so motion can stutter. For smooth play, set "
+                "it to 60 or 120 Hz in your display settings, or turn on variable refresh (FreeSync, G-SYNC, Adaptive-Sync) if the "
+                "screen has it.";
+        }
+
+        // English text for tests and callers without a translator.
         static std::string Text(const Inputs& in)
         {
-            char head[160];
-            std::snprintf(head, sizeof head, "This screen is running at %d Hz, which doesn't divide 60 fps evenly, so motion can stutter. ",
-                Key(in.modeHz));
-            if (in.platform == Platform::GameMode && !in.externalScreen)
-                return std::string(head) + "For smooth play, set Refresh Rate to 60 Hz in Quick Access > Performance. Turn on "
-                    "Use per-game profile there and Steam keeps it for this game.";
-            if (in.platform == Platform::GameMode)
-                return std::string(head) + "For smooth play, set the screen to 60 or 120 Hz in Steam's display settings, or turn "
-                    "on variable refresh if it has it.";
-            return std::string(head) + "For smooth play, set it to 60 or 120 Hz in your display settings, or turn on variable "
-                "refresh (FreeSync, G-SYNC, Adaptive-Sync) if the screen has it.";
+            const int key = Key(in.modeHz);
+            return std::vformat(Pattern(in), std::make_format_args(key));
         }
     };
 }

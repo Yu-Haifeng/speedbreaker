@@ -483,11 +483,11 @@ namespace update
         }
     }
 
-    std::string FooterLabel()
+    std::string FooterLabel(std::string_view pattern)
     {
         const Status status = GetStatus();
         if (!status.result || status.result->outcome != Outcome::Available)
             return {};
-        return "Update to " + status.result->label;
+        return std::vformat(pattern, std::make_format_args(status.result->label));
     }
 }

@@ -1,28 +1,29 @@
 #!/usr/bin/env python3
-"""USA -> another region's guest addresses, for Most Wanted's PAL discs: the
-Spanish one (pal-es, the default) and the German one (pal-de).
+"""USA -> another region's guest addresses, for Most Wanted's regional discs:
+the Spanish one (pal-es, the default), the German one (pal-de) and the Asian
+one (ntsc-asia).
 
 The PAL (Spanish) default.xex is the USA build's source tree built for Europe:
 22,679 functions, aligned 1:1 with the USA's (all but 19 the same code modulo
 the addresses in it), laid out in 17 pieces shifted by 0..+0x200; .data and
 .bss keep their addresses, .rdata items shift by 0..+0xD0. This maps any USA
-address the recompiler config or the runtime names to the PAL one, and checks
-the PAL bytes there are the USA's (instructions compared with branch
-displacements and address halves masked). The German default.xex is mapped
-the same way; how close it is to the USA's is only known once this has run on
-it (an address it can't map is an error naming it).
+address the recompiler config or the runtime names to the regional one, and
+checks the bytes there are the USA's (instructions compared with branch
+displacements and address halves masked). The German and Asian default.xex
+files are mapped the same way; how close each is to the USA's is only known
+once this has run on it (an address it can't map is an error naming it).
 
-    python3 survey/region_map.py toml   <usa dir> <pal dir> <funcmap.tsv> [--region pal-de]
+    python3 survey/region_map.py toml   <usa dir> <region dir> <funcmap.tsv> [--region pal-de]
         writes config/pal-es/{nfsmw.toml,switch_tables.toml} from config/
-        (config/pal-de/ with --region pal-de)
-    python3 survey/region_map.py table  <usa dir> <pal dir> <funcmap.tsv> [--region pal-de]
-        writes runtime/region/pal_es_addresses.inc (pal_de_addresses.inc):
+        (config/<region>/ with --region pal-de or --region ntsc-asia)
+    python3 survey/region_map.py table  <usa dir> <region dir> <funcmap.tsv> [--region pal-de]
+        writes runtime/region/<stem>_addresses.inc and <stem>_names.h:
         every guest address the runtime's sources name
         (runtime/region/hook_addresses.py finds them)
-    python3 survey/region_map.py check  <usa dir> <pal dir> <funcmap.tsv> [--region pal-de]
+    python3 survey/region_map.py check  <usa dir> <region dir> <funcmap.tsv> [--region pal-de]
         both, compared with the committed files (exit 1 on a difference)
 
-<usa dir>/<pal dir>: a decrypted, decompressed image of each default.xex
+<usa dir>/<region dir>: a decrypted, decompressed image of each default.xex
 (image.bin, base 0x82000000; survey/xexsurvey.cpp writes it, with the section
 table in xexsurvey.txt). funcmap.tsv: usa_addr pal_addr usa_len pal_len status
 for every USA .pdata function (status exact, reloc-equal or changed;
@@ -122,6 +123,7 @@ class RegionMap:
         self.funcs.sort()
         self.starts = [f[0] for f in self.funcs]
         self._data = None
+        self._switch_cases = {}
 
     # --- code --------------------------------------------------------------
     def function_of(self, addr):
@@ -153,15 +155,22 @@ class RegionMap:
             if p is None:
                 raise ValueError(f'{addr:#010x}: in USA-only function {u:#010x}')
             if st == 'changed':
-                # One of the 19 the PAL build changed: the instruction at the
-                # same place in the aligned code, if it is in an unchanged run.
+                # One of the functions the regional build changed: the
+                # instruction at the same place in the aligned code, if it is
+                # in an unchanged run.
                 pal = self.aligned(i).get(addr)
-                if pal is None:
-                    raise ValueError(f'{addr:#010x}: in {u:#010x} (changed in the PAL build), in code the PAL one changed')
-                eq = self.same_code(addr, pal, 1)
-                if not eq:
-                    raise ValueError(f'{addr:#010x} -> {pal:#010x}: the code differs')
-                return pal, f'in sub_{u:08X} (changed; aligned), {eq}'
+                if pal is not None:
+                    eq = self.same_code(addr, pal, 1)
+                    if not eq:
+                        raise ValueError(f'{addr:#010x} -> {pal:#010x}: the code differs')
+                    return pal, f'in sub_{u:08X} (changed; aligned), {eq}'
+                # A switch label can be in code the alignment can't pair
+                # (the compiler laid the cases out differently): pair tables
+                # by case-code evidence, never by their positions.
+                cases = self.switch_case(i, addr)
+                if cases:
+                    return cases[0], f'in sub_{u:08X} (changed; switch case at {cases[1]:#010x})'
+                raise ValueError(f'{addr:#010x}: in {u:#010x} (changed in the regional build), in code the regional one changed')
             if ul != pl:
                 raise ValueError(f'{addr:#010x}: in {u:#010x}, whose length differs')
             pal = p + (addr - u)
@@ -185,6 +194,49 @@ class RegionMap:
             raise ValueError(f'{addr:#010x}: outside .pdata, and no neighbouring delta matches its code')
         d, eq = found[0]
         return addr + d, f'outside .pdata, neighbour delta {d:+#x}, {eq}'
+
+    def switch_case_map(self, usa, pal):
+        """Map case labels between decoded tables without using their order.
+        Multiple same-shaped tables pair only when every case and the default
+        have equivalent code. A function's sole same-shaped pair may contain a
+        changed case (a different stack-frame size, for example), but at least
+        one entry must still provide code evidence for the pair."""
+        found = {}
+        for a in usa:
+            for b in pal:
+                if a['r'] != b['r'] or len(a['labels']) != len(b['labels']):
+                    continue
+                source = a['labels'] + [a['default']]
+                target = b['labels'] + [b['default']]
+                equal = [self.same_code(u, p, 4) for u, p in zip(source, target)]
+                if len(usa) == len(pal) == 1:
+                    if not any(equal):
+                        continue
+                elif not all(equal):
+                    continue
+                for u, p in zip(a['labels'], b['labels']):
+                    found.setdefault(u, set()).add(p)
+        return found
+
+    def switch_case(self, i, addr):
+        """(pal label, usa label) for a switch case `addr` of changed function
+        `i`. None when `addr` isn't a case, or equivalent code doesn't identify
+        exactly one target."""
+        if i not in self._switch_cases:
+            def tables(img, start, size):
+                out = []
+                for k in range(size // 4):
+                    if img.words(start + 4 * k, 1)[0] != 0x4E800420:
+                        continue
+                    t = decode_jump_table(img, start + 4 * k)
+                    if t and all(start <= x < start + size for x in t['labels'] + [t['default']]):
+                        out.append(t)
+                return out
+            u, p, ul, pl, _ = self.funcs[i]
+            usa, pal = tables(self.usa, u, ul), tables(self.pal, p, pl)
+            self._switch_cases[i] = self.switch_case_map(usa, pal)
+        targets = self._switch_cases[i].get(addr)
+        return (next(iter(targets)), addr) if targets and len(targets) == 1 else None
 
     def aligned(self, i):
         """{usa address: pal address} for the instructions of a changed
@@ -228,9 +280,64 @@ class RegionMap:
                 if op != 15 and rd in hu and not (op in (36, 37, 38, 39, 44, 45, 52, 53, 54, 55)):
                     hu.pop(rd, None)
                     hp.pop(rd, None)
-        self._data = {k: c.most_common(1)[0][0] for k, c in dmap.items()}
+        # Conflicting deltas are not evidence of an object's address: dropping
+        # them is safer than letting Counter's tie order pick one.
+        self._data = {k: next(iter(c)) for k, c in dmap.items() if len(c) == 1}
         self._data_keys = sorted(self._data)
         return self._data
+
+    def moved_data(self, addr, size, name):
+        """A moved .data/.rdata address. A paired code reference identifies
+        its target directly; two references on opposite sides with one delta
+        bound a field between them. Otherwise a neighbouring reference lends
+        a delta only when 64 bytes of context on either side match and occur
+        once in the whole regional section; repeated short data stays unmapped."""
+        refs = self._data_refs()
+        want = self.usa.bytes(addr, size)
+        if addr in refs:
+            d = refs[addr]
+            if self.pal.bytes(addr + d, size) == want:
+                return addr + d, f'{name} referenced, delta {d:+#x}, same bytes'
+
+        candidates = []
+        k = bisect.bisect_right(self._data_keys, addr)
+        # References on both sides, with one delta, bound the same moved
+        # object even when its short (often zero) fields repeat elsewhere.
+        if 0 < k < len(self._data_keys):
+            lower, upper = self._data_keys[k - 1], self._data_keys[k]
+            d = refs[lower]
+            if refs[upper] == d and self.pal.bytes(addr + d, size) == want:
+                return addr + d, f'{name} beside {lower:#010x}, delta {d:+#x}, same bytes'
+        for j in (k - 1, k):
+            if 0 <= j < len(self._data_keys):
+                anchor = self._data_keys[j]
+                candidates.append((refs[anchor], f'beside {anchor:#010x}'))
+        us, ps = self.usa.named(name), self.pal.named(name)
+        lo = max(us[1], addr - 64)
+        hi = min(us[2], addr + size + 64)
+        context = self.usa.bytes(lo, hi - lo)
+        haystack = self.pal.data[ps[1] - BASE:ps[2] - BASE]
+        matches = []
+        seen = set()
+        for d, how in candidates:
+            target = addr + d
+            if target in seen:
+                continue
+            seen.add(target)
+            context_at = target - (addr - lo)
+            if context_at < ps[1] or context_at + len(context) > ps[2]:
+                continue
+            if self.pal.bytes(context_at, len(context)) != context:
+                continue
+            first = haystack.find(context)
+            if first < 0 or haystack.find(context, first + 1) >= 0:
+                continue
+            matches.append((target, f'{name} {how}, delta {d:+#x}, same unique context'))
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            raise ValueError(f'{addr:#010x}: {name} moved, paired deltas find multiple matching contexts')
+        raise ValueError(f'{addr:#010x}: {name} moved, no reference or unique neighbouring context identifies it')
 
     def data(self, addr, size=4):
         if addr >= BASE + len(self.usa.data) or addr < BASE:
@@ -243,27 +350,23 @@ class RegionMap:
                 return addr, 'the image header (the same)'
             raise ValueError(f'{addr:#010x}: in no section')
         name = s[0]
-        if name in ('.data', '.tls', '.XEXID', '.idata', '.XBLD'):
+        if name in ('.tls', '.XEXID', '.idata', '.XBLD'):
             ps = self.pal.named(name)
             if (ps[1], ps[2]) != (s[1], s[2]):
                 raise ValueError(f'{addr:#010x}: {name} moved')
             ub, pb = self.usa.bytes(addr, size), self.pal.bytes(addr, size)
             return addr, f'{name} (same layout)' + (', same bytes' if ub == pb else ', initial bytes differ')
+        if name == '.data':
+            # Most releases keep .data at the USA addresses; one built from
+            # different headers can insert a little before some of it. Code
+            # references give the delta; the bytes there must match.
+            ps = self.pal.named(name)
+            ub = self.usa.bytes(addr, size)
+            if (ps[1], ps[2]) == (s[1], s[2]) and self.pal.bytes(addr, size) == ub:
+                return addr, '.data (same layout, same bytes)'
+            return self.moved_data(addr, size, name)
         if name == '.rdata':
-            refs = self._data_refs()
-            want = self.usa.bytes(addr, size)
-            cands = []
-            if addr in refs:
-                cands.append((refs[addr], 'referenced'))
-            k = bisect.bisect_right(self._data_keys, addr)
-            for j in (k - 1, k):
-                if 0 <= j < len(self._data_keys):
-                    d = refs[self._data_keys[j]]
-                    cands.append((d, f'beside {self._data_keys[j]:#010x}'))
-            for d, how in cands:
-                if self.pal.bytes(addr + d, size) == want:
-                    return addr + d, f'.rdata {how}, delta {d:+#x}, same bytes'
-            raise ValueError(f'{addr:#010x}: .rdata, no paired delta finds the same {size} bytes')
+            return self.moved_data(addr, size, name)
         if s[3] == 'code':
             return self.code(addr)
         raise ValueError(f'{addr:#010x}: in {name}')
@@ -335,6 +438,7 @@ class Region:
         self.title = title                     # "(Xbox 360, Europe/PAL, Spanish)" in the config's first line
         self.xex_sha256 = xex_sha256
         self.extras_name, self.extras = extras_name, extras
+        self.tv = 'PAL' if rid.startswith('pal-') else 'NTSC'
         self.rerun = 'survey/region_map.py table' + ('' if rid == 'pal-es' else f' --region {rid}')
 
 
@@ -343,6 +447,8 @@ REGIONS = {
                      'PAL_ES_EXTRA_FUNCTIONS', PAL_ES_EXTRA_FUNCTIONS),
     'pal-de': Region('pal-de', 'PAL (German)', 'Europe/PAL, German', hook_addresses.PAL_DE_XEX_SHA256,
                      'PAL_DE_EXTRA_FUNCTIONS', PAL_DE_EXTRA_FUNCTIONS),
+    'ntsc-asia': Region('ntsc-asia', 'NTSC (Asia)', 'Asia/NTSC', hook_addresses.NTSC_ASIA_XEX_SHA256,
+                        'find_extra_functions', None),
 }
 
 
@@ -537,9 +643,9 @@ def check_inline_tables(rm):
         pal_bctr = rm.code(bctr)[0]
         words = list(rm.pal.words(pal_bctr + (table - bctr), n))
         if words != [rm.code(x)[0] for x in labels]:
-            sys.exit(f'inline table after {bctr:#010x}: the PAL table differs')
+            sys.exit(f'inline table after {bctr:#010x}: the regional table differs')
         n_ok += 1
-    print(f'{n_ok} inline jump tables: the PAL tables hold the translated labels')
+    print(f'{n_ok} inline jump tables: the regional tables hold the translated labels')
 
 
 def check_function_sizes(rm, toml):
@@ -560,7 +666,7 @@ def write_toml(rm, check, region):
     assert usa_hash in main
     header = ('# GENERATED by survey/region_map.py from config/nfsmw.toml: do not edit; rerun it.\n'
               f'# The {region.name} disc\'s default.xex: every address is the USA one moved to\n'
-              '# where the PAL build has the same code (checked); comments still name the USA\n'
+              f'# where the {region.tv} build has the same code (checked); comments still name the USA\n'
               '# addresses.\n')
     toml = translate_toml(rm, main.replace(usa_hash, pal_hash).replace('(Xbox 360, USA)', f'(Xbox 360, {region.title})'),
                           header, [('"../game/files/default.xex"', f'"../../game/files-{region.id}/default.xex"'),
@@ -569,7 +675,7 @@ def write_toml(rm, check, region):
     check_inline_tables(rm)
     check_function_sizes(rm, main)
     sw = translate_toml(rm, (ROOT / 'config/switch_tables.toml').read_text(),
-                        '# GENERATED by survey/region_map.py from config/switch_tables.toml (PAL addresses).\n', [])
+                        f'# GENERATED by survey/region_map.py from config/switch_tables.toml ({region.tv} addresses).\n', [])
     if region.extras is None:
         extras, source = find_extra_functions(rm, sw), 'find_extra_functions'
     else:
@@ -577,9 +683,9 @@ def write_toml(rm, check, region):
     # The extra functions join the leaf functions' list.
     marker = '    # manual (see MANUAL in survey/leaf_switch_bounds.py)\n'
     assert toml.count(marker) == 1
-    toml = toml.replace(marker, f'    # PAL only (survey/region_map.py {source})\n' + ''.join(
+    toml = toml.replace(marker, f'    # {region.tv} only (survey/region_map.py {source})\n' + ''.join(
         f'    {{ address = 0x{a:08X}, size = 0x{z:X} }},\n' for a, z, *_ in extras if a is not None) + marker)
-    sw = sw.rstrip('\n') + f'\n\n# ---- PAL ONLY (survey/region_map.py {source}) ----\n'
+    sw = sw.rstrip('\n') + f'\n\n# ---- {region.tv} ONLY (survey/region_map.py {source}) ----\n'
     for a, z, base, r, default, labels in extras:
         sw += f'[[switch]]\nbase = 0x{base:08X}\nr = {r}\ndefault = 0x{default:08X}\nlabels = [\n'
         sw += ''.join(f'    0x{l:08X},\n' for l in labels) + ']\n\n'
@@ -608,8 +714,8 @@ def write_table(rm, check, region):
              '//',
              '// Every guest address the runtime names (runtime/region/hook_addresses.py finds',
              f'// them) and where the {region.name} default.xex has the same code or data:',
-             f'// {region.macro}_ADDRESS(USA, PAL). USA default.xex {hook_addresses.USA_XEX_SHA256},',
-             f'// PAL {region.xex_sha256}.',
+             f'// {region.macro}_ADDRESS(USA, {region.tv}). USA default.xex {hook_addresses.USA_XEX_SHA256},',
+             f'// {region.tv} {region.xex_sha256}.',
              '']
     for addr, pal, how, refs in rows:
         files = sorted({r.split(':')[0] for r in refs})
@@ -617,7 +723,7 @@ def write_table(rm, check, region):
     names = ['// GENERATED by survey/region_map.py table: do not edit; rerun it.',
              '// SpeedBreaker runtime. GPL-3.0-or-later (see COPYING).',
              '//',
-             f'// {region.macro}_sub_<USA> -> sub_<PAL>: the {region.name} recompiled function of each one',
+             f'// {region.macro}_sub_<USA> -> sub_<regional>: the {region.name} recompiled function of each one',
              '// the runtime names (region.h\'s SB_HOOK and SB_ORIGINAL use it). A function',
              f'// missing here is a build error: rerun {region.rerun}.',
              '#pragma once',

@@ -159,11 +159,11 @@ inline std::filesystem::path GetCachePath()
 // log once that is open.
 std::string MigrateUserFolders();
 
-// The saves: the USA release's in save/, the European (PAL, Spanish) one's
-// in save-pal-es/ (region/region.h): its saves carry another game ID, and
-// the releases are kept apart rather than one reading another's. The
-// European (PAL, German) one's go to save-pal-de/ the same way.
+// The saves: the USA release's in save/, each other release's in a folder of
+// its own (region/region.h): its saves carry another game ID, and the
+// releases are kept apart rather than one reading another's.
 inline std::filesystem::path GetSavePath(bool)
 {
-    return GetUserPath() / (region::IsPalDe() ? "save-pal-de" : region::IsPalEs() ? "save-pal-es" : "save");
+    return GetUserPath() / (region::IsPalDe() ? "save-pal-de" : region::IsPalEs() ? "save-pal-es"
+        : region::IsNtscAsia() ? "save-ntsc-asia" : "save");
 }

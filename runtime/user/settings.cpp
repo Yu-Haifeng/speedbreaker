@@ -110,6 +110,14 @@ namespace settings
         constexpr const char* kSmoothMotionDescription = "Up to 120 fps on a 120 Hz screen, or 90 on a 90 Hz one (not on a Steam Deck): the game still runs at 60 steps a second, and a picture between each two is drawn from the poses either side. A little more delay and power. Heavy scenes drop to an even 60 for a while; off at 30 fps and with variable refresh.";
 #endif
 
+        // Settings > Advanced > Overlay Language: the language of
+        // SpeedBreaker's own menus, performance overlay and dialogs.
+        constexpr EnumEntry kOverlayLanguageEntries[] = {
+            { 0, "system", "System" },
+            { 1, "english", "English" },
+            { 2, "chinese", "简体中文" },
+        };
+
         // Settings > Game > Language: game/language.h's table, in its order.
         constexpr auto kLanguageEntries = [] {
             std::array<EnumEntry, std::size(game::language::kLanguages)> entries {};
@@ -533,6 +541,10 @@ namespace settings
               .table = "advanced", .key = "performance_overlay", .label = "Performance Overlay",
               .description = "Show the frame rate and frame time in a corner of the screen.",
               .env = "NFSMW_PERF_OVERLAY", .defaultValue = 0 },
+            { .id = Id::OverlayLanguage, .category = Category::Advanced, .type = Type::Enum, .apply = Apply::Live,
+              .table = "advanced", .key = "overlay_language", .label = "Overlay Language",
+              .description = "Language of SpeedBreaker's own menus, performance overlay and dialogs. System follows this device's language.",
+              .env = "NFSMW_OVERLAY_LANGUAGE", .defaultValue = 0, .entries = kOverlayLanguageEntries },
             { .id = Id::UpdateCheck, .category = Category::Advanced, .type = Type::Bool, .apply = Apply::Live,
               .table = "advanced", .key = "check_for_updates_at_startup", .label = "Check for Updates at Startup",
               .description = "Ask GitHub once at each launch whether a newer SpeedBreaker is out. Only the question goes out: nothing about you or this device. Off: only Check for Updates asks.",
@@ -540,7 +552,7 @@ namespace settings
             // Game
             { .id = Id::GameLanguage, .category = Category::Game, .type = Type::Enum, .apply = Apply::Restart, .hidden = kLanguageHidden,
               .table = "game", .key = "language", .label = "Language",
-              .description = "The language of the game's menus and race text: English (the USA disc's), or French, German, Italian, Spanish, Dutch, Swedish, Danish, Polish or Finnish, from the same disc's files. The movies and the speech stay in English, as the disc has them. The European (PAL) Spanish disc has Spanish movies and speech, and starts in Spanish; another language there keeps them in Spanish.",
+              .description = "The language of the game's menus, race text and video subtitles: English (the USA disc's), French, German, Italian, Spanish, Dutch, Swedish, Danish, Polish, Finnish, or Chinese (the Asian disc's). The movies and the speech stay in English on the USA and Asian discs, as they have them. The European (PAL) Spanish disc has Spanish movies and speech, and starts in Spanish; another language there keeps them in Spanish. The Asian disc starts in Chinese; choose English there to switch its menus and subtitles to English.",
               .env = "NFSMW_LANGUAGE", .defaultValue = double(game::language::kEnglish), .entries = kLanguageEntries },
         };
         static_assert(std::size(kOptions) == kCount, "one row per settings::Id");
