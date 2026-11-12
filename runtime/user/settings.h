@@ -75,6 +75,9 @@ namespace settings
         StickDeadzone,
         TriggerDeadzone,
         Vibration,
+        // The touch controls (hid/touch.h): Auto, On, Off. Auto shows the deck
+        // where there is a touchscreen and no controller to play with instead.
+        TouchControls,
         // Wheel (the [wheel] table): a USB steering wheel as the pad
         // (hid/wheel_map.h). The page shows itself only while one is
         // connected; the four axis options are hidden, and hold what
@@ -189,6 +192,9 @@ namespace settings
     // Anisotropy: 1 (off), 2, 4, 8, 16, or one of these.
     constexpr int32_t kAnisotropyAuto = 0;   // 16x on a discrete GPU or an M-series iPad, 4x on other integrated ones
     constexpr int32_t kAnisotropyGame = -1;  // each texture's own setting, as on the 360
+    // Touch Controls: Show puts the deck up even with a controller in hand,
+    // Hide takes it away, Auto leaves it to the device (hid/touch.h).
+    enum class TouchControlsMode : int32_t { Auto = 0, Show = 1, Hide = 2 };
 
     struct EnumEntry
     {

@@ -433,6 +433,13 @@ target_link_libraries(language_test PRIVATE ${SB_SETTINGS_LIBS})
 target_include_directories(language_test SYSTEM PRIVATE ${ROOT}/tools/XenonRecomp/thirdparty/tomlplusplus/include)
 # The keyboard's controls and how held keys become a pad (hid/key_map.h), header only.
 sb_test(key_map_test)
+# The touch deck (hid/touch_layout.h, hid/touch_input.h, both header only and
+# SDL-free): where each of the 16 controls sits on the game's picture at the
+# design's reference size and at other picture shapes, the safe area's margin,
+# what a finger at a point presses, the steering's drag mapping, and the
+# presses a set of fingers amounts to (one finger per control, several on one,
+# a tap that must outlive its frame, a finger that lands on nothing).
+sb_test(touch_deck_test)
 # A USB steering wheel as the pad (hid/wheel_map.h, header only): which
 # joystick is a wheel, which of its axes is the wheel and which are its
 # pedals, the steering curve, the pedals' travel, the buttons and paddles,

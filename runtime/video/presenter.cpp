@@ -21,6 +21,7 @@
 #include <game/hfr.h>
 #include "swapchain_use.h"
 #include "picture_fit.h"
+#include "picture_rect.h"
 #include "frame_rate.h"
 #include "swapchain_policy.h"
 #include "fullscreen_policy.h"
@@ -5232,6 +5233,57 @@ void main()
                 w = h = 0;
         }
         const bool haveSource = w && h;
+        // Letterbox to the source aspect ratio; or, on a screen of another
+        // shape with Aspect Ratio on Auto, fill it (video/picture_fit): the
+        // game draws that frame with its view widened (a wider screen, Hor+)
+        // or made taller (a narrower one, Vert+) by the same factor
+        // (game/ultrawide). (The frame's shape, not the image's: at a
+        // non-uniform internal resolution such as 3x2 they differ.)
+        //
+        // Judged here, before the UI lays out: the touch controls sit on the
+        // picture (video/picture_rect.h), so this frame's rectangle has to be
+        // known to them, and to the UI drawn over it, not the frame before's.
+        float frameW = float(aspectW ? aspectW : w), frameH = float(aspectH ? aspectH : h);
+        int32_t dw = int32_t(frameW), dh = int32_t(frameH);
+        float frameScaleX = 1.0f, frameScaleY = 1.0f;  // the view scales this frame is shown for
+        if (haveSource)
+        {
+            // A new frame decides (and tells the game for the next ones); a
+            // redraw keeps the shape its frame was rendered with. Only with
+            // the hooks in the recompiled code (a stale ppc/ lacks them, or
+            // the Vert+ ones).
+            PictureFit fit;
+            if (upload || s_lastFreshImage)
+            {
+                const bool fillMode = settings::GetInt(settings::Id::AspectRatio) == int32_t(settings::AspectMode::Auto);
+                fit = FitPicture(s_swapExtent.width, s_swapExtent.height, frameW, frameH, fillMode && game::HooksActive(),
+                    fillMode && game::TallHooksActive());
+                game::SetAspectScale(fit.scaleX, fit.scaleY);
+                s_lastScaleX = fit.scaleX;
+                s_lastScaleY = fit.scaleY;
+            }
+            else
+                fit = PlacePicture(s_swapExtent.width, s_swapExtent.height, frameW, frameH, s_lastScaleX, s_lastScaleY);
+            dw = fit.width;
+            dh = fit.height;
+            frameScaleX = fit.scaleX;
+            frameScaleY = fit.scaleY;
+        }
+        {
+            // Where the picture goes: centred, the rectangle the three paths
+            // below draw it in -- and the one the touch controls lay
+            // themselves out on (video/picture_rect.h). Nothing to show: an
+            // invalid rectangle, and the deck stays off.
+            PictureRect picture;
+            if (dw > 0 && dh > 0)
+            {
+                const float sw = float(std::max(s_swapExtent.width, 1u)), sh = float(std::max(s_swapExtent.height, 1u));
+                picture = { float((int32_t(s_swapExtent.width) - dw) / 2) / sw,
+                    float((int32_t(s_swapExtent.height) - dh) / 2) / sh, float(dw) / sw, float(dh) / sh,
+                    float(dw) / float(dh) };
+            }
+            video::SetPictureRect(picture);
+        }
         const bool uiFrame = s_uiReady && ui::BeginFrame();
         // Screenshots asked for (CaptureFrame): this frame's game image,
         // taken before the UI is drawn over it. Without one, none.
@@ -5391,38 +5443,8 @@ void main()
         VkDeviceSize captureSize = 0;
         int captureIndex = -1;
         std::vector<CompareShot> compareShots;  // NFSMW_UPSCALE_COMPARE
-        // Letterbox to the source aspect ratio; or, on a screen of another
-        // shape with Aspect Ratio on Auto, fill it (video/picture_fit): the
-        // game draws that frame with its view widened (a wider screen, Hor+)
-        // or made taller (a narrower one, Vert+) by the same factor
-        // (game/ultrawide). (The frame's shape, not the image's: at a
-        // non-uniform internal resolution such as 3x2 they differ.)
-        float frameW = float(aspectW ? aspectW : w), frameH = float(aspectH ? aspectH : h);
-        int32_t dw = int32_t(frameW), dh = int32_t(frameH);
-        float frameScaleX = 1.0f, frameScaleY = 1.0f;  // the view scales this frame is shown for
-        if (haveSource)
-        {
-            // A new frame decides (and tells the game for the next ones); a
-            // redraw keeps the shape its frame was rendered with. Only with
-            // the hooks in the recompiled code (a stale ppc/ lacks them, or
-            // the Vert+ ones).
-            PictureFit fit;
-            if (upload || s_lastFreshImage)
-            {
-                const bool fillMode = settings::GetInt(settings::Id::AspectRatio) == int32_t(settings::AspectMode::Auto);
-                fit = FitPicture(s_swapExtent.width, s_swapExtent.height, frameW, frameH, fillMode && game::HooksActive(),
-                    fillMode && game::TallHooksActive());
-                game::SetAspectScale(fit.scaleX, fit.scaleY);
-                s_lastScaleX = fit.scaleX;
-                s_lastScaleY = fit.scaleY;
-            }
-            else
-                fit = PlacePicture(s_swapExtent.width, s_swapExtent.height, frameW, frameH, s_lastScaleX, s_lastScaleY);
-            dw = fit.width;
-            dh = fit.height;
-            frameScaleX = fit.scaleX;
-            frameScaleY = fit.scaleY;
-        }
+        // (The picture's rectangle is above, before the UI laid out: dw, dh,
+        // frameScaleX and frameScaleY come from there.)
         // Under Hor+ and Vert+ the post-processing keeps to each side of the
         // 16:9 band's edge (video/band_filter.h): the frame's band and the
         // strips past it are filtered as if each were the whole image.

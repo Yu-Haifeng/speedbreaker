@@ -387,9 +387,12 @@ Once SpeedBreaker is on your device:
    not copied first.
 2. **Install.** The game goes into the app's own storage, and is left out of iCloud and computer
    backups (your saves are still backed up). Afterwards you can delete the disc image.
-3. **Connect a controller or a keyboard.** The game itself doesn't use touch. Pair a Bluetooth
-   controller, such as an Xbox or PlayStation one, or use a Backbone. So far, a Backbone Pro on
-   the iPad is the one tested.
+3. **Play with the screen or a controller.** With nothing paired, the game puts its controls on
+   the screen: steering on the left thumb, the pedals and the A/B/X/Y buttons on the right, the
+   D-pad, views and shifter along the edges (see [Touch controls](#touch-controls)). A Bluetooth
+   controller, such as an Xbox or PlayStation one, or a Backbone, takes over when it is connected
+   (Settings > Input > Touch Controls overrules that either way). So far, a Backbone Pro on the
+   iPad is the one tested.
 
 **Settings:** tap with **three fingers**, or press Back + Start on the controller (View + Menu on
 a Backbone). SpeedBreaker runs in landscape, full screen. If you switch away, the game freezes,
@@ -437,6 +440,33 @@ is B, Square is X and Triangle is Y.
   you want (Esc or B cancels). Y or Backspace clears a key, X or Delete puts the row's defaults
   back, and *Reset page* restores this whole table. A key may drive several controls, as the
   arrows do. There is no mouse control in game.
+
+### Touch controls
+
+Where the screen is the only thing to play with (an iPhone or iPad with no controller, a
+tablet), the game puts its controls on the picture, the whole Xbox 360 set:
+
+| Where | Controls |
+|---|---|
+| Left thumb | **Steering**: the panel comes to your thumb wherever you press on the left, and the wheel follows it left to right; letting go centres the wheel and sends the panel back |
+| Right thumb | **Throttle** and **brake** pedals along the bottom, **A** (handbrake), **B** (nitrous) and **X** (Speedbreaker) above them |
+| Top left | The **D-pad**: shop or event, Blacklist, world map, messages |
+| Top middle | **Start** (pause) and **Back** (reset car) |
+| Top right | **Y** and **LB** (rear view, quick rear view), **RB** (camera), and the shifter (**RS** up and down) |
+
+Each control carries the icon of what it does and the name of the key it stands for. The pedals,
+the steering and the four face buttons stay pressed while your thumb is down; the rest are taps. A
+thumb that slides off a pedal keeps it — lift to let go. From the throttle, though, a thumb that
+rolls up onto **B** (nitrous) or **X** (Speedbreaker) takes that too while the pedal stays down, so
+you can boost or slow time without letting go of the throttle. A three-finger tap still opens the
+settings from anywhere.
+
+The controls sit on the game's picture, in the handoff's proportions, so they keep their place on
+the image whatever the screen's shape, and stay clear of a notch. The steering panel is the
+exception: while you hold it, it comes to your thumb, as far as the picture's margins allow, and
+it returns to its corner when you let go. Settings > Input > Touch
+Controls: **Auto** (the default) shows them where there is a touchscreen and no controller, **On**
+keeps them with a controller in hand, **Off** hides them.
 
 **To open the settings:**
 
@@ -507,8 +537,9 @@ iPhone and iPad.
 **Audio:** Master Volume (100%), Mute (Off), and Mute in Background (Off), which silences the
 game while its window isn't in front.
 
-**Input:** Stick Deadzone (8%; raise it if the car steers by itself), Trigger Deadzone (2%), and
-Vibration (On).
+**Input:** Stick Deadzone (8%; raise it if the car steers by itself), Trigger Deadzone (2%),
+Vibration (On), and Touch Controls (Auto): Auto shows the on-screen controls where there is a
+touchscreen and no controller; On keeps them with a controller in hand, Off never shows them.
 
 **Wheel** (experimental; shown while a steering wheel is plugged in): Steering Wheel (On; Off
 lets a controller or the keyboard play while the wheel stays plugged in), Steering Range (360
@@ -644,8 +675,10 @@ the slider back to the middle, or press Y (Defaults) and choose Yes.
 **How do I quit in fullscreen without a keyboard?** Open the settings and choose *Quit Game* on
 the bottom row; it asks first.
 
-**The game ignores my touches on iPhone or iPad.** The game needs a controller or a keyboard.
-Touch only works in SpeedBreaker's own screens; a three-finger tap opens the settings.
+**Where are the touch controls?** With a controller connected they are off (Settings > Input >
+Touch Controls > On keeps them anyway), and they hide while a menu of ours is open. Where the
+screen has a notch, the controls keep clear of it. They sit on the game's picture, so a window
+wider or narrower than the picture shows them over it, not over the black bars.
 
 **Where are my saves, settings and logs?**
 

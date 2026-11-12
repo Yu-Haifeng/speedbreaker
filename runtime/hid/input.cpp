@@ -6,6 +6,7 @@
 #include "last_pad.h"
 #include "player_slots.h"
 #include "rumble_note.h"
+#include "touch.h"
 #include "wheel.h"
 #include <cpu/guest_time.h>
 #include <game/split_screen.h>
@@ -897,11 +898,12 @@ namespace
     }
 
 #if defined(__APPLE__) && TARGET_OS_IOS
-    // A phone or tablet has nothing to play the game with but a controller
-    // (or a keyboard attached to it, which counts as on desktop), and a
-    // player who has just installed it may not know. So a notice when there
-    // is none: once as the game starts (not over the installer, which a
-    // finger works), and again when the last one goes. Each waits a moment
+    // A phone or tablet has nothing to play the game with but a controller,
+    // the on-screen controls (hid/touch.h) or a keyboard attached to it, which
+    // counts as on desktop; a player who has just installed it may not know.
+    // So a notice when there is none: once as the game starts (not over the
+    // installer, which a finger works), and again when the last one goes. Each
+    // waits a moment
     // and looks again, so a controller that iOS reports a little late (a
     // Bluetooth pad woken by its button after launch takes a few seconds),
     // or one that drops out and straight back, brings up nothing; and one
@@ -924,7 +926,7 @@ namespace
             return;
         s_noControllerAt = 0;
         // (NFSMW_INPUT_SCRIPT is the controller of an automated run.)
-        if (s_gamepad || hid::wheel::Playing() || SDL_HasKeyboard() || !s_script.empty())
+        if (s_gamepad || hid::wheel::Playing() || SDL_HasKeyboard() || !s_script.empty() || hid::touch::Active())
             return;
         fprintf(stderr, "[input] no controller: %s\n", s_noControllerText);
         ui::Toast(s_noControllerText, 10.0);
@@ -1156,6 +1158,7 @@ namespace hid
             wheel::Initialize();
         OpenFirstGamepad();
         OpenIdlePads();
+        touch::Initialize();  // (after SDL's video: a touchscreen is a video device)
         std::lock_guard lock(s_mutex);
         s_deviceConnected = true;  // the keyboard always counts as controller 0
     }
@@ -1169,6 +1172,7 @@ namespace hid
 
     void HandleEvent(const SDL_Event& e)
     {
+        touch::HandleEvent(e);  // the touch deck's fingers (a no-op while it is off)
         wheel::HandleEvent(e);  // a wheel coming or going
         if (e.type == SDL_EVENT_GAMEPAD_ADDED)
         {
@@ -1238,6 +1242,7 @@ namespace hid
 
     void Suspend()
     {
+        touch::Reset();  // a finger held while the app left never lifts
         // Update sends a rumble for 5 s at a time and doesn't run meanwhile:
         // stop it now rather than buzz on for a game that stands still.
         if (s_gamepad)
@@ -1271,6 +1276,7 @@ namespace hid
 
     void Update()
     {
+        touch::Update();  // is the deck up, and on what
 #if defined(__APPLE__) && TARGET_OS_IOS
         NoControllerNotice();
 #endif
@@ -1353,6 +1359,27 @@ namespace hid
                     *axes[a] = r.axis[a];
             if (r.axisSet[size_t(keymap::Axis::LX)])
                 lxFromWheel = false;
+        }
+        // The touch deck (hid/touch.h), as another set of keys: its buttons
+        // OR in, its pedals pull their triggers as a key's would, its wheel is
+        // the left stick's x, and its shifter the right stick's y (which is
+        // how the game shifts gears). Last, so what a finger holds is what the
+        // game gets; the scripted pad of a test still wins above.
+        if (touch::Active())
+        {
+            const touch::Sample& t = touch::Snapshot();
+            p.buttons |= t.buttons;
+            rt = std::max(rt, t.rightTrigger);
+            lt = std::max(lt, t.leftTrigger);
+            if (t.steerSet)
+            {
+                lx = t.steer;
+                lxFromWheel = false;  // (a wheel resting off centre isn't a move)
+            }
+            if (t.shiftUp)
+                ry = 1.0f;
+            if (t.shiftDown)
+                ry = -1.0f;
         }
         p.lx = ToShort(lx);
         p.ly = ToShort(ly);
@@ -1461,6 +1488,7 @@ namespace hid
         wheel::Update();
 
         UpdateOtherPlayers(blocked, menuClosed, deadzone, triggerDeadzone, vibration, vibrationChanged, padTaken);
+        touch::EndFrame();  // once the pad has its frame's presses, age them
     }
 }
 

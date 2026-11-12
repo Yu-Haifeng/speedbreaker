@@ -138,6 +138,9 @@ namespace ui
 
     // Screens (settings_menu.cpp, perf_overlay.cpp, installer_screen.cpp).
     void DrawSettings();
+    // The touch deck (touch_overlay.cpp; hid/touch.h), over the game's picture
+    // and under every panel of ours: nothing while the deck is off.
+    void DrawTouchOverlay();
     void ResetSettingsMenu();  // on opening: focus the first row, no dialog left open
     // Main thread, from ProcessEvent on a key-down or key-up while the menu
     // is open, after the F1 toggle: true when a Controls row was waiting

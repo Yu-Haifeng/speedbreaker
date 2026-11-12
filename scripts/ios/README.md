@@ -15,8 +15,9 @@ SpeedBreaker isn't on the App Store. There are two ways to get it on your iPhone
   Pro 12.9-inch (M2), on version 27. Devices with 6 GB of memory or more are recommended; 4 GB
   ones (iPhone 13 and 13 mini, iPhone SE 3rd generation, iPad mini 6th generation) are untested
   and likely too small.
-- **A controller, strongly recommended**: an Xbox or PlayStation controller over Bluetooth, or a
-  Backbone or similar. There are no touch controls for driving (a keyboard works too). A
+- **A controller, recommended**: an Xbox or PlayStation controller over Bluetooth, or a
+  Backbone or similar. Without one the game shows its touch controls (Settings > Input > Touch
+  Controls; a keyboard works too). A
   three-finger tap opens the settings.
 - **Your own disc image** of the USA Xbox 360 disc (an `.iso`, about 7.8 GB), and room for it plus
   the installed game (about 7.1 GB) while it installs. You can delete the image afterwards.

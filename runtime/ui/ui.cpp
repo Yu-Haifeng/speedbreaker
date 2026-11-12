@@ -4,6 +4,7 @@
 #include "cursor_idle.h"
 
 #include <hid/input.h>
+#include <hid/touch.h>
 #include <hid/wheel.h>       // the settings chord and the menus from a steering wheel
 #include <hid/wheel_map.h>   // ...which buttons those are
 #include <gpu/renderer.h>
@@ -11,6 +12,7 @@
 #include <report/report.h>
 #include <update/updater.h>  // Tick: the startup check
 #include <user/settings.h>
+#include <video/picture_rect.h>
 #include <video/swapchain_policy.h>
 
 #include <imgui.h>
@@ -1065,6 +1067,14 @@ namespace ui
         return !s_toast.empty() || !s_toastQueue.empty();
     }
 
+    // The touch deck rides the game's own frames (hid/touch.h): it needs none
+    // of its own, so WantsFrames stays out of it, and it is drawn over the
+    // picture whether or not anything else of ours is up.
+    bool TouchDeckVisible()
+    {
+        return hid::touch::Active() && video::GetPictureRect().Valid();
+    }
+
     bool BeginFrame()
     {
         s_frameBuilt = false;
@@ -1091,7 +1101,8 @@ namespace ui
             toastText = CurrentToastLocked();
         }
         bool toast = !toastText.empty();
-        if (!s_modal && !s_settingsOpen && !perf && !toast)
+        const bool deck = TouchDeckVisible();
+        if (!s_modal && !s_settingsOpen && !perf && !toast && !deck)
             return false;
         ImGui_ImplVulkan_NewFrame();
         FollowPlayerOne();
@@ -1158,6 +1169,8 @@ namespace ui
             else if (perf)
                 DrawPerfOverlay();
         }
+        if (deck)
+            DrawTouchOverlay();  // (the background list: under every panel)
         if (toast)
             DrawToast(toastText);
         ImGui::Render();

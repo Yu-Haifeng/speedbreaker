@@ -200,6 +200,14 @@ namespace settings
             { kAnisotropyGame, "game", "Original" },
         };
 
+        // Settings > Input > Touch Controls (hid/touch.h): Auto keeps to the
+        // devices that need it, Show and Hide overrule it.
+        constexpr EnumEntry kTouchControlsEntries[] = {
+            { int32_t(TouchControlsMode::Auto), "auto", "Auto" },
+            { int32_t(TouchControlsMode::Show), "on", "On" },
+            { int32_t(TouchControlsMode::Hide), "off", "Off" },
+        };
+
         // Settings > Wheel > Steering Range: the degrees of the wheel's
         // turn that reach full lock, of the 900 a G29 and its family turn
         // (hid/wheel_map.h). 0: all of it, whatever the wheel turns.
@@ -412,6 +420,11 @@ namespace settings
               .table = "input", .key = "vibration", .label = "Vibration",
               .description = "Controller rumble, and the knocks a steering wheel's force feedback passes on (Settings > Wheel).",
               .env = "NFSMW_VIBRATION", .defaultValue = 1 },
+            { .id = Id::TouchControls, .category = Category::Input, .type = Type::Enum, .apply = Apply::Live,
+              .table = "input", .key = "touch_controls", .label = "Touch Controls",
+              .description = "The on-screen controls: Auto shows them where there is a touchscreen and no controller.",
+              .env = "NFSMW_TOUCH_CONTROLS", .defaultValue = double(int32_t(TouchControlsMode::Auto)),
+              .entries = kTouchControlsEntries },
             // Wheel (Settings > Wheel; hid/wheel_map.h and hid/wheel.cpp
             // read them). The page shows only while a wheel is connected.
             { .id = Id::Wheel, .category = Category::Wheel, .type = Type::Bool, .apply = Apply::Live,
