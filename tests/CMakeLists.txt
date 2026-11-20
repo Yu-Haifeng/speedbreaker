@@ -495,6 +495,10 @@ sb_test(key_map_test)
 # presses a set of fingers amounts to (one finger per control, several on one,
 # a tap that must outlive its frame, a finger that lands on nothing).
 sb_test(touch_deck_test)
+# The touch deck's haptics (hid/haptic_feedback.h, header only): the game's
+# Xbox 360 motors as one phone pattern, the buttons' taps, the steering's
+# centre and lock detents, and the engine's start/stop gate.
+sb_test(haptic_feedback_test)
 # A USB steering wheel as the pad (hid/wheel_map.h, header only): which
 # joystick is a wheel, which of its axes is the wheel and which are its
 # pedals, the steering curve, the pedals' travel, the buttons and paddles,

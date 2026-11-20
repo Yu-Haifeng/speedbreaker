@@ -2,6 +2,7 @@
 // A steering wheel's own side of this is hid/wheel.cpp.
 #include <stdafx.h>
 #include "input.h"
+#include "haptic_feedback.h"
 #include "key_map.h"
 #include "last_pad.h"
 #include "player_slots.h"
@@ -11,6 +12,7 @@
 #include <cpu/guest_time.h>
 #include <game/split_screen.h>
 #include <kernel/function.h>
+#include <platform/haptics.h>
 #include <ui/ui.h>
 #include <user/settings.h>
 #include <user/key_names.h>
@@ -52,6 +54,15 @@ namespace
     uint32_t s_packet = 0;
     uint16_t s_rumbleLow = 0, s_rumbleHigh = 0;
     bool s_rumbleDirty = false;
+
+    // The touch deck's own haptics (hid/haptic_feedback.h, platform/haptics.h):
+    // main thread, driven by Update. Which button presses and steering ticks
+    // are new, whether the engine should be up, and how long the last frame
+    // took (cooldowns are in seconds, not frames).
+    hid::haptic::TouchFeedback s_touchFeedback;
+    hid::haptic::EngineGate s_hapticGate;
+    bool s_hapticsOn = false;
+    double s_hapticLastTime = 0.0;
 
     SDL_Gamepad* s_gamepad = nullptr;
     std::atomic<bool> s_blocked{ false };
@@ -677,6 +688,53 @@ namespace
         fprintf(stderr, "[input] rumble note for %s: shown (%s)\n", pad.name.c_str(), d.reason);
     }
 
+    // The touch deck's haptics (hid/haptic_feedback.h): the game's rumble on
+    // the phone's Taptic Engine when the deck is how this player plays (no
+    // controller and no wheel in hand: those rumble on their own), and the
+    // deck's button taps and steering detents. Settings > Input > Vibration
+    // is the master switch, as for a pad's motors.
+    void UpdateTouchHaptics(uint16_t low, uint16_t high, bool vibration, bool onWheel)
+    {
+        const bool wanted = vibration && hid::touch::Active() && !s_gamepad && !onWheel;
+        const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        const float dt = s_hapticLastTime > 0.0 ? float(std::clamp(now - s_hapticLastTime, 0.0, 0.25)) : 0.0f;
+        s_hapticLastTime = now;
+
+        const bool running = s_hapticGate.Step(wanted, now);
+        if (running != s_hapticsOn)
+        {
+            s_hapticsOn = running;
+            if (running)
+                platform::haptics::Start();
+            else
+            {
+                platform::haptics::Stop();
+                s_touchFeedback.Reset();
+            }
+        }
+        if (!wanted)
+        {
+            // A menu, a controller in hand, Vibration off: silence the deck's
+            // rumble at once, though the engine may still be in its stop hold.
+            if (running)
+                platform::haptics::Rumble({});
+            s_touchFeedback.Reset();
+            return;
+        }
+        if (!running)
+            return;
+
+        platform::haptics::Rumble(hid::haptic::GameRumble(low, high));
+
+        const hid::haptic::Cues cues = s_touchFeedback.Step(hid::touch::Snapshot(), dt);
+        if (cues.TapCount())
+            platform::haptics::Tap(hid::haptic::kButtonTap);
+        if (cues.centre)
+            platform::haptics::Tap(hid::haptic::kCentreDetent);
+        if (cues.fullLock)
+            platform::haptics::Tap(hid::haptic::kLockDetent);
+    }
+
     // A controller may be player 1's: not a wheel's (one device, one owner:
     // hid/wheel.h), and with virtual pads only theirs (a real controller
     // nearby must not rumble).
@@ -1228,6 +1286,11 @@ namespace hid
         }
         s_others.clear();
         CloseIdlePads();
+        // The phone's haptics too: the deck's rumble and taps.
+        platform::haptics::Shutdown();
+        s_hapticsOn = false;
+        s_hapticGate.Reset();
+        s_touchFeedback.Reset();
     }
 
     SDL_Gamepad* PlayerOneGamepad()
@@ -1250,6 +1313,14 @@ namespace hid
         for (OtherPad& o : s_others)
             SDL_RumbleGamepad(o.gamepad, 0, 0, 0);
         wheel::Suspend();
+        // The phone's haptics as well: no finger stays held, and the engine
+        // must not buzz under a suspended app. The next foreground frame
+        // starts it again, with the game's last rumble request.
+        platform::haptics::Stop();
+        s_hapticsOn = false;
+        s_hapticGate.Reset();
+        s_touchFeedback.Reset();
+        s_hapticLastTime = 0.0;
     }
 
     void Resume()
@@ -1486,6 +1557,10 @@ namespace hid
         // without the game asking for anything new.
         wheel::Rumble(low, high, vibration);
         wheel::Update();
+
+        // The touch deck's haptics, with this frame's rumble and presses in
+        // hand (hid/haptic_feedback.h): before EndFrame ages them.
+        UpdateTouchHaptics(low, high, vibration, onWheel);
 
         UpdateOtherPlayers(blocked, menuClosed, deadzone, triggerDeadzone, vibration, vibrationChanged, padTaken);
         touch::EndFrame();  // once the pad has its frame's presses, age them

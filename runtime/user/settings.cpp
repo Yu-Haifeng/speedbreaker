@@ -437,7 +437,7 @@ namespace settings
               .env = "NFSMW_TRIGGER_DEADZONE", .defaultValue = 0.02, .min = 0, .max = 0.9, .step = 0.01, .unit = "%" },
             { .id = Id::Vibration, .category = Category::Input, .type = Type::Bool, .apply = Apply::Live,
               .table = "input", .key = "vibration", .label = "Vibration",
-              .description = "Controller rumble, and the knocks a steering wheel's force feedback passes on (Settings > Wheel).",
+              .description = "Controller rumble, the knocks a steering wheel's force feedback passes on (Settings > Wheel), and on iPhone and iPad the touch controls' haptics: the game's rumble, the buttons' taps and the steering's detents.",
               .env = "NFSMW_VIBRATION", .defaultValue = 1 },
             { .id = Id::TouchControls, .category = Category::Input, .type = Type::Enum, .apply = Apply::Live,
               .table = "input", .key = "touch_controls", .label = "Touch Controls",

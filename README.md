@@ -389,10 +389,11 @@ Once SpeedBreaker is on your device:
    backups (your saves are still backed up). Afterwards you can delete the disc image.
 3. **Play with the screen or a controller.** With nothing paired, the game puts its controls on
    the screen: steering on the left thumb, the pedals and the A/B/X/Y buttons on the right, the
-   D-pad, views and shifter along the edges (see [Touch controls](#touch-controls)). A Bluetooth
-   controller, such as an Xbox or PlayStation one, or a Backbone, takes over when it is connected
-   (Settings > Input > Touch Controls overrules that either way). So far, a Backbone Pro on the
-   iPad is the one tested.
+   D-pad, views and shifter along the edges (see [Touch controls](#touch-controls)). The game's
+   rumble then drives the phone's haptics, and the controls tap and tick as you use them. A
+   Bluetooth controller, such as an Xbox or PlayStation one, or a Backbone, takes over when it is
+   connected (Settings > Input > Touch Controls overrules that either way), and its own rumble
+   with it. So far, a Backbone Pro on the iPad is the one tested.
 
 **Settings:** tap with **three fingers**, or press Back + Start on the controller (View + Menu on
 a Backbone). SpeedBreaker runs in landscape, full screen. If you switch away, the game freezes,
@@ -467,6 +468,13 @@ exception: while you hold it, it comes to your thumb, as far as the picture's ma
 it returns to its corner when you let go. Settings > Input > Touch
 Controls: **Auto** (the default) shows them where there is a touchscreen and no controller, **On**
 keeps them with a controller in hand, **Off** hides them.
+
+On iPhone (and an iPad with a Taptic Engine), the screen's controls vibrate: the game's rumble
+reaches the phone like an Xbox 360 pad's two motors, heavy and low on one side and light and fast
+on the other; each button pressed gives a short tap; and the wheel ticks softly as it crosses
+centre and more firmly at full lock. All of it follows Settings > Input > Vibration, and it is
+quiet while a controller or wheel is in use (they rumble on their own). An iPad without a Taptic
+Engine has no haptics.
 
 **To open the settings:**
 
@@ -543,7 +551,8 @@ stays the same. It changes nothing on outputs that aren't 7.1, and the line unde
 says whether yours is.
 
 **Input:** Stick Deadzone (8%; raise it if the car steers by itself), Trigger Deadzone (2%),
-Vibration (On), and Touch Controls (Auto): Auto shows the on-screen controls where there is a
+Vibration (On; controller rumble, a wheel's force feedback, and on iPhone and iPad the touch
+controls' haptics), and Touch Controls (Auto): Auto shows the on-screen controls where there is a
 touchscreen and no controller; On keeps them with a controller in hand, Off never shows them.
 
 **Wheel** (experimental; shown while a steering wheel is plugged in): Steering Wheel (On; Off

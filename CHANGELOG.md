@@ -4,6 +4,16 @@ What changed in each SpeedBreaker release, newest first. Each release's notes on
 its entry here, and the game shows the entry once, the first time a new version starts (offline:
 it's built into the game).
 
+## Unreleased
+
+### What's new
+
+- **Haptics for the touch controls** (iPhone, and iPad models with a Taptic Engine): with no
+  controller or wheel, the game's rumble drives the phone like an Xbox 360 pad's two motors
+  (heavy and low, light and fast), each on-screen button gives a short tap, and the steering
+  ticks softly at centre and more firmly at full lock. Settings > Input > Vibration turns it
+  off, and a controller or wheel in use keeps its own rumble.
+
 ## v0.2.6
 
 ### What's new
