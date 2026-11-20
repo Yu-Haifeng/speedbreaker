@@ -894,11 +894,22 @@ namespace ui
         // and 40 points either side in turn, for the cursor's hiding:
         // SDL_WarpMouseInWindow moves the real pointer (SDL reports a warp as
         // a motion of no distance, which isn't the mouse moving), then the
-        // motion a mouse moving there makes is posted.
+        // motion a mouse moving there makes is posted. MouseDown:u,v presses
+        // the left button at those fractions of the window, MouseTo:u,v moves
+        // it there, MouseUp lets it go: with NFSMW_TOUCH_MOUSE the deck's
+        // finger, so a capture can show held controls and a steering drag.
         constexpr SDL_Keycode kFocusLost = SDLK_EXTENDED_MASK | 0x7F01, kFocusGained = SDLK_EXTENDED_MASK | 0x7F02,
-                              kShot = SDLK_EXTENDED_MASK | 0x7F03, kMouseMove = SDLK_EXTENDED_MASK | 0x7F04;
+                              kShot = SDLK_EXTENDED_MASK | 0x7F03, kMouseMove = SDLK_EXTENDED_MASK | 0x7F04,
+                              kMouseDown = SDLK_EXTENDED_MASK | 0x7F05, kMouseUp = SDLK_EXTENDED_MASK | 0x7F06,
+                              kMouseTo = SDLK_EXTENDED_MASK | 0x7F07;
         enum class Press : uint8_t { Tap, Hold, Repeat, Release };
-        struct Key { double time; SDL_Keycode key; Press press = Press::Tap; };
+        struct Key
+        {
+            double time;
+            SDL_Keycode key;
+            Press press = Press::Tap;
+            float x = 0.0f, y = 0.0f;  // MouseDown/MouseTo's place, of the window
+        };
         static const auto start = std::chrono::steady_clock::now();
         static std::vector<Key> keys = [] {
             std::vector<Key> parsed;
@@ -920,12 +931,28 @@ namespace ui
                             press = kind;
                             name = name.substr(strlen(prefix));
                         }
+                    // MouseDown:u,v and MouseTo:u,v carry their place: the
+                    // fractions of the window the button lands at.
+                    float x = 0.0f, y = 0.0f;
+                    if (name.starts_with("MouseDown:") || name.starts_with("MouseTo:"))
+                    {
+                        const size_t at = name.find(':'), comma = name.find(',', at + 1);
+                        if (comma != std::string_view::npos)
+                        {
+                            x = std::atof(std::string(name.substr(at + 1, comma - at - 1)).c_str());
+                            y = std::atof(std::string(name.substr(comma + 1)).c_str());
+                        }
+                        name = name.substr(0, at);
+                    }
                     SDL_Keycode key = name == "FocusLost" ? kFocusLost : name == "FocusGained" ? kFocusGained
                         : name == "Shot"                                                         ? kShot
                         : name == "MouseMove"                                                    ? kMouseMove
+                        : name == "MouseDown"                                                    ? kMouseDown
+                        : name == "MouseUp"                                                      ? kMouseUp
+                        : name == "MouseTo"                                                      ? kMouseTo
                                                                                                  : SDL_GetKeyFromName(name.c_str());
                     if (key != SDLK_UNKNOWN)
-                        parsed.push_back({ std::atof(item.c_str()), key, press });
+                        parsed.push_back({ std::atof(item.c_str()), key, press, x, y });
                     else
                         fprintf(stderr, "[ui] NFSMW_UI_KEYS: unknown key %s\n", item.c_str() + colon + 1);
                 }
@@ -978,6 +1005,42 @@ namespace ui
                 e.motion.y = y;
                 e.motion.xrel = x - fromX;
                 e.motion.yrel = y - fromY;
+                SDL_PushEvent(&e);
+                fprintf(stderr, "[ui] NFSMW_UI_KEYS: mouse to %.0f,%.0f\n", x, y);
+                continue;
+            }
+            if (keys[next].key == kMouseDown || keys[next].key == kMouseUp)
+            {
+                int w = 0, h = 0;
+                SDL_GetWindowSize(s_window, &w, &h);
+                const bool down = keys[next].key == kMouseDown;
+                SDL_Event e{};
+                e.type = down ? SDL_EVENT_MOUSE_BUTTON_DOWN : SDL_EVENT_MOUSE_BUTTON_UP;
+                e.button.timestamp = SDL_GetTicksNS();
+                e.button.windowID = SDL_GetWindowID(s_window);
+                e.button.which = 1;  // a mouse (not SDL_TOUCH_MOUSEID or SDL_PEN_MOUSEID)
+                e.button.button = SDL_BUTTON_LEFT;
+                e.button.x = keys[next].x * float(w);
+                e.button.y = keys[next].y * float(h);
+                e.button.down = down;
+                e.button.clicks = 1;
+                SDL_PushEvent(&e);
+                fprintf(stderr, "[ui] NFSMW_UI_KEYS: mouse %s at %.0f,%.0f\n", down ? "down" : "up", e.button.x, e.button.y);
+                continue;
+            }
+            if (keys[next].key == kMouseTo)
+            {
+                int w = 0, h = 0;
+                SDL_GetWindowSize(s_window, &w, &h);
+                const float x = keys[next].x * float(w), y = keys[next].y * float(h);
+                SDL_WarpMouseInWindow(s_window, x, y);
+                SDL_Event e{};
+                e.type = SDL_EVENT_MOUSE_MOTION;
+                e.motion.timestamp = SDL_GetTicksNS();
+                e.motion.windowID = SDL_GetWindowID(s_window);
+                e.motion.which = 1;  // a mouse (not SDL_TOUCH_MOUSEID or SDL_PEN_MOUSEID)
+                e.motion.x = x;
+                e.motion.y = y;
                 SDL_PushEvent(&e);
                 fprintf(stderr, "[ui] NFSMW_UI_KEYS: mouse to %.0f,%.0f\n", x, y);
                 continue;

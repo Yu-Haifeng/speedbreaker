@@ -84,14 +84,12 @@ namespace hid::touch
         constexpr float kNitroDiameter = 9.35f, kOrbDiameter = 7.45f;
         constexpr float kSpeedbreakerLeft = 9.35f;
 
-        // The D-pad: a 3 x 3 grid of 4.45 cqw cells, the arrows on its edges.
+        // The D-pad: a 3 x 3 grid of 4.45 cqw cells. Four are the directions;
+        // the others are the plate ui/touch_overlay.cpp draws around them.
         constexpr float kDpadCell = 4.45f;
 
         // Start and Back, centred on the top edge: a button 4.05 high, 0.65
-        // apart, as wide as an icon and a key tag with their padding
-        // (0.9 + 1.6 + 0.65 + 4.25 + 0.9). The design's own is about this wide
-        // with a label between the two; the deck has none, so "START" and
-        // "BACK" get the room.
+        // apart, wide enough for "START" and "BACK" above their icons.
         constexpr float kSystemTop = 2.7f, kSystemHeight = 4.05f, kSystemGap = 0.65f;
         constexpr float kSystemWidth = 8.3f;
 
@@ -99,9 +97,12 @@ namespace hid::touch
         constexpr float kViewDiameter = 5.45f, kViewGap = 0.55f;
         constexpr float kViewCount = 3.0f;
 
-        // The shifter: a header strip and two halves, under the view buttons.
-        constexpr float kShifterWidth = 5.45f;
-        constexpr float kShifterHeader = 1.8f, kShiftHeight = 3.45f;
+        // The shifter: two halves under the view buttons, each the whole of
+        // its button (the name sits on the line between them, drawn by
+        // ui/touch_overlay.cpp). Wider than the handoff's 5.45, which was
+        // sized for a header it no longer has.
+        constexpr float kShifterWidth = 6.9f;
+        constexpr float kShiftHeight = 4.35f;
         constexpr float kShifterBelowViews = 6.9f;  // 9.55 - 2.65, from the view buttons' top
     }
 
@@ -275,9 +276,9 @@ namespace hid::touch
         d.camera = rect(viewX + 2.0f * (kViewDiameter + kViewGap), canvas.top, kViewDiameter, kViewDiameter);
         const float shifterX = 100.0f - canvas.right - kShifterWidth;
         const float shifterY = canvas.top + kShifterBelowViews;
-        d.shifter = rect(shifterX, shifterY, kShifterWidth, kShifterHeader + 2.0f * kShiftHeight);
-        d.shiftUp = rect(shifterX, shifterY + kShifterHeader, kShifterWidth, kShiftHeight);
-        d.shiftDown = rect(shifterX, shifterY + kShifterHeader + kShiftHeight, kShifterWidth, kShiftHeight);
+        d.shifter = rect(shifterX, shifterY, kShifterWidth, 2.0f * kShiftHeight);
+        d.shiftUp = rect(shifterX, shifterY, kShifterWidth, kShiftHeight);
+        d.shiftDown = rect(shifterX, shifterY + kShiftHeight, kShifterWidth, kShiftHeight);
 
         return d;
     }

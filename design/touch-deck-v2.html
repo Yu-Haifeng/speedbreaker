@@ -1,0 +1,1639 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-material="v2">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SpeedBreaker · 触控层材质 v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   令牌层：颜色、字阶、间距、圆角、阴影、动效
+   与 runtime/ui/touch_overlay.cpp 的 design tokens 对齐
+   ============================================================ */
+:root {
+  --ink:        #0B0A09;   /* 页面底：暖近黑，不用纯黑 */
+  --ink-2:      #121110;   /* 面板底 */
+  --ink-3:      #1A1815;   /* 抬起的卡片 */
+  --chalk:      #F1EDE3;   /* 主文字：粉笔白（= kChalk） */
+  --chalk-70:   rgba(241, 237, 227, .70);
+  --chalk-45:   rgba(241, 237, 227, .45);
+  --chalk-20:   rgba(241, 237, 227, .20);
+  --chalk-10:   rgba(241, 237, 227, .10);
+  --orange:     #FF7B2E;   /* 唯一强调色（= kOrangeBright） */
+  --orange-soft: rgba(255, 123, 46, .16);
+  --nitro:      #A9DCE7;   /* 氮气冷色（= kNitro） */
+  --key-a:      #A8D888;   /* Xbox A */
+  --key-b:      #FF8E83;   /* Xbox B */
+  --key-x:      #8FC4FF;   /* Xbox X */
+  --key-y:      #F3D77D;   /* Xbox Y */
+
+  --f-display: "Anton", "Bebas Neue", Impact, Haettenschweiler, sans-serif;
+  --f-body: "IBM Plex Sans", "PingFang SC", "Hiragino Sans GB", sans-serif;
+  --f-mono: "IBM Plex Mono", "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-5: 24px; --s-6: 40px; --s-7: 64px; --s-8: 96px;
+
+  --r-sm: 6px; --r-md: 12px; --r-lg: 20px;
+
+  --ease: cubic-bezier(.16, 1, .3, 1);
+  --dur-press: 130ms;
+  --dur-ui: 320ms;
+}
+
+* { box-sizing: border-box; }
+
+html { color-scheme: dark; }
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(90rem 50rem at 8% -12%, rgba(255, 123, 46, .14), transparent 58%),
+    radial-gradient(70rem 40rem at 92% 0%, rgba(169, 220, 231, .07), transparent 55%),
+    var(--ink);
+  color: var(--chalk);
+  font-family: var(--f-body);
+  font-weight: 300;
+  font-size: 15px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 颗粒层：让大块近黑不发死 */
+body::after {
+  content: "";
+  position: fixed; inset: 0; z-index: 9; pointer-events: none; opacity: .045;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+
+.wrap {
+  max-width: 1560px;
+  margin: 0 auto;
+  padding: var(--s-6) var(--s-6) var(--s-8);
+}
+
+/* ============================================================
+   报头：工业排印，非居中
+   ============================================================ */
+.masthead {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: var(--s-6);
+  align-items: end;
+  padding-bottom: var(--s-5);
+  border-bottom: 1px solid var(--chalk-10);
+}
+
+.eyebrow {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--chalk-45);
+  display: flex; align-items: center; gap: var(--s-3);
+}
+.eyebrow::before {
+  content: ""; width: 28px; height: 1px; background: var(--orange);
+}
+
+h1 {
+  font-family: var(--f-display);
+  font-weight: 400;
+  font-size: clamp(44px, 6.4vw, 96px);
+  line-height: .92;
+  letter-spacing: -.01em;
+  margin: var(--s-3) 0 var(--s-2);
+  text-transform: uppercase;
+}
+h1 .thin {
+  display: block;
+  font-size: clamp(15px, 1.5vw, 22px);
+  letter-spacing: .32em;
+  color: var(--chalk-45);
+  margin-top: var(--s-4);
+  font-family: var(--f-mono);
+  font-weight: 400;
+}
+
+.lead {
+  max-width: 46ch;
+  color: var(--chalk-70);
+  font-size: 14.5px;
+  line-height: 1.85;
+  margin: 0;
+}
+.lead b { color: var(--chalk); font-weight: 500; }
+
+/* 令牌条：一条横向的色板，像仪表铭牌 */
+.tokens {
+  grid-column: 1 / -1;
+  display: flex; flex-wrap: wrap; gap: var(--s-5);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--chalk-10);
+  margin-top: var(--s-2);
+}
+.token { display: flex; align-items: center; gap: var(--s-2); font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .08em; color: var(--chalk-45); }
+.token i { width: 14px; height: 14px; border-radius: 3px; display: block; box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); }
+
+/* ============================================================
+   主区：左舞台，右规格
+   ============================================================ */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 336px;
+  gap: var(--s-6);
+  margin-top: var(--s-6);
+  align-items: start;
+}
+
+.stage-shell {
+  border: 1px solid var(--chalk-10);
+  border-radius: var(--r-md);
+  background: var(--ink-2);
+  padding: 10px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, .5);
+}
+
+/* 舞台就是游戏画面（picture rect）：塞进 16:9，控件按 cqw 摆 */
+.stage {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #07080a;
+  /* 1cqw = 画面宽度的 1%；JS 按实际像素覆盖它。
+     放在 stage 上，deck 与批注层都继承。 */
+  --cqw: 8px;
+  touch-action: none;
+  user-select: none;
+}
+
+/* —— 背景：一条路，透视收敛在画面中央 ——
+   两种光：黄昏（默认，亮路面才是材质的考场）与夜景。
+   玻璃、软影、辉光是否成立，都要在亮背景上过一遍。 */
+.stage[data-scene="dusk"] {
+  --sky-1: #4A5663; --sky-2: #E0B98C; --horizon: rgba(255, 214, 166, .85);
+  --sun: rgba(255, 233, 196, .95);
+  --ground-1: #4B443B; --ground-2: #201D19;
+  --road-1: #857E72; --road-2: #3D3A35;
+  --lane: rgba(255, 255, 255, .72);
+  --kerb-a: #E4DCCB; --kerb-b: #8A5A3E; --kerb-o: .34;
+  --hill: #3A342C;
+}
+.stage[data-scene="night"] {
+  --sky-1: #0A0C11; --sky-2: #2A2118; --horizon: rgba(255, 150, 80, .42);
+  --sun: rgba(255, 180, 110, .55);
+  --ground-1: #14120F; --ground-2: #080706;
+  --road-1: #2B2723; --road-2: #090807;
+  --lane: rgba(255, 255, 255, .45);
+  --kerb-a: #D8D2C6; --kerb-b: #1A1917; --kerb-o: .20;
+  --hill: #14120F;
+}
+.scene { position: absolute; inset: 0; }
+.scene .sky {
+  position: absolute; inset: 0 0 46% 0;
+  background:
+    radial-gradient(42% 72% at 50% 100%, var(--horizon), rgba(255, 123, 46, 0) 68%),
+    linear-gradient(180deg, var(--sky-1) 0%, var(--sky-2) 100%);
+}
+.scene .sun {
+  position: absolute; left: 50%; top: 45.5%;
+  width: 22%; aspect-ratio: 1; transform: translate(-50%, -50%);
+  background: radial-gradient(circle, var(--sun), rgba(255, 170, 100, .20) 40%, transparent 68%);
+  filter: blur(4px);
+}
+/* 地平线：一条很低的丘陵剪影，压在 46% 上 */
+.scene .hills {
+  position: absolute; left: 0; right: 0; top: 40%; height: 6.2%;
+  background: var(--hill);
+  clip-path: polygon(0 100%, 0 55%, 10% 30%, 22% 52%, 34% 22%, 46% 46%, 58% 26%, 70% 50%, 82% 34%, 92% 52%, 100% 40%, 100% 100%);
+  opacity: .9;
+  filter: blur(.6px);
+}
+/* 地面：路两侧的土坡，让"路"不是浮在天空里 */
+.scene .ground {
+  position: absolute; inset: 46% 0 0 0;
+  background: linear-gradient(180deg, var(--ground-1) 0%, var(--ground-2) 100%);
+}
+.scene .road {
+  position: absolute; inset: 46% 0 0 0;
+  background: linear-gradient(180deg, var(--road-1) 0%, var(--road-2) 58%, #1A1815 100%);
+  clip-path: polygon(43.2% 0, 56.8% 0, 100% 100%, 0 100%);
+}
+.scene .lane {
+  position: absolute; inset: 46% 0 0 0;
+  background: repeating-linear-gradient(180deg, var(--lane) 0 7px, transparent 7px 40px);
+  clip-path: polygon(49.7% 0, 50.3% 0, 51.5% 100%, 48.5% 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 70%, transparent 96%);
+  opacity: .9;
+}
+.scene .kerb {
+  position: absolute; inset: 46% 0 0 0;
+  background: repeating-linear-gradient(180deg, var(--kerb-a) 0 9px, var(--kerb-b) 9px 18px);
+  clip-path: polygon(42.9% 0, 43.15% 0, 4.5% 100%, 0.5% 100%);
+  opacity: var(--kerb-o);
+}
+.scene .kerb.r { clip-path: polygon(56.85% 0, 57.1% 0, 99.5% 100%, 95.5% 100%); }
+.scene .streaks {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, transparent 55%, rgba(255, 236, 210, .10) 55.2%, transparent 62%);
+  filter: blur(8px);
+}
+.scene .fog {
+  position: absolute; left: 0; right: 0; top: 41%; height: 13%;
+  background: linear-gradient(180deg, transparent, rgba(255, 232, 200, .30) 55%, transparent);
+  filter: blur(10px);
+}
+.scene .vignette {
+  position: absolute; inset: 0;
+  background: radial-gradient(122% 92% at 50% 46%, transparent 42%, rgba(0,0,0,.52) 100%);
+}
+
+/* 游戏内 HUD 的一点暗示：中下方速度与档位，只做对照，别抢触控层 */
+
+/* 转向抓取区：真机上"画面左侧、D-pad 以下"整块都能按下把面板叫过来，
+   这件事在图上不标出来没人猜得到——做成可开关的批注 */
+.grab-zone {
+  position: absolute; left: 0; top: calc(var(--cqw) * 16);
+  width: calc(var(--cqw) * 42); bottom: 0;
+  border: 1px dashed rgba(255, 123, 46, .40);
+  border-left: 0; border-bottom: 0;
+  border-radius: 0 8px 0 0;
+  display: none; pointer-events: none;
+}
+.grab-zone span {
+  position: absolute; left: calc(var(--cqw) * .8); bottom: calc(var(--cqw) * .7);
+  font-family: var(--f-mono); font-size: calc(var(--cqw) * .92);
+  letter-spacing: .08em; color: rgba(255, 123, 46, .75);
+}
+.deck.show-grab .grab-zone { display: block; }
+
+/* ============================================================
+   触控层本体
+   所有尺寸 = 设计稿 cqw（1cqw = 画面宽度的 1%），与
+   runtime/hid/touch_layout.h 的 layout:: 常量一一对应
+   ============================================================ */
+.deck {
+  position: absolute;
+  inset: 0;
+  --margin: 2.65;                 /* canvas 边距 */
+  /* 材质：平涂（v1）与渐变（v2）的差别就在这两个变量 */
+  --glass-top: rgba(20, 18, 15, .30);
+  --glass-bot: rgba(20, 18, 15, .52);
+  --hairline: rgba(255, 255, 255, .078);
+  --shade: rgba(0, 0, 0, .18);
+  --edge: rgba(241, 237, 227, .19);
+  --edge-held: rgba(255, 123, 46, .78);
+  --glow-1: rgba(255, 123, 46, .16);
+  --glow-2: rgba(255, 123, 46, .07);
+  --tint: rgba(255, 100, 26, .10);
+  --press-dur: var(--dur-press);
+}
+
+.ctrl {
+  position: absolute;
+  margin: 0; padding: 0;
+  border: 0; background: none; color: inherit;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+  transform: scale(var(--k, 1));
+  transition: transform var(--press-dur) var(--ease);
+  will-change: transform;
+}
+/* 按住时向中心收缩（对应 overlay 的 Shrink） */
+.ctrl.is-held { --k: var(--k-held, .96); }
+
+/* 玻璃面：一层渐变 + 一圈边 + 三道软影（ImGui 没有模糊，用环代替） */
+.ctrl::before {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, var(--glass-top) 0%, var(--glass-bot) 100%);
+  box-shadow:
+    inset 0 0 0 1px var(--edge),
+    inset 0 1px 0 0 var(--hairline),
+    inset 0 -1px 0 0 var(--shade),
+    0 1px 0 0 rgba(0, 0, 0, .26),
+    0 1px 0 1.5px rgba(0, 0, 0, .10),
+    0 1px 0 3px rgba(0, 0, 0, .07),
+    0 1px 0 4.5px rgba(0, 0, 0, .04);
+  transition: box-shadow var(--press-dur) var(--ease), background var(--press-dur) var(--ease);
+}
+/* 按住：内染橙色 + 两圈辉光。
+   这一层常驻、只动 opacity，才能跟着 --press-dur 渐入（伪元素凭空出现会硬跳）。 */
+.ctrl::after {
+  content: "";
+  position: absolute; inset: 0; z-index: 0;
+  border-radius: inherit;
+  background: var(--tint);
+  box-shadow: 0 0 0 2px var(--glow-1), 0 0 0 4.5px var(--glow-2);
+  opacity: 0;
+  transition: opacity var(--press-dur) var(--ease);
+  pointer-events: none;
+}
+.ctrl.is-held::after { opacity: 1; }
+.ctrl.is-held::before { box-shadow:
+    inset 0 0 0 1px var(--edge-held),
+    inset 0 1px 0 0 var(--hairline),
+    inset 0 -1px 0 0 var(--shade),
+    0 1px 0 0 rgba(0, 0, 0, .26),
+    0 1px 0 1.5px rgba(0, 0, 0, .10),
+    0 1px 0 3px rgba(0, 0, 0, .07),
+    0 1px 0 4.5px rgba(0, 0, 0, .04);
+}
+
+/* 控件内容：键名在上，图标在下，整体居中（对应 IconWithKey）。
+   z-index 必须压在 ::after 的染色层之上，否则按下时图标被橙色糊住。 */
+.face {
+  position: absolute; inset: 0; z-index: 1;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: calc(var(--cqw) * var(--gap, .15));
+  pointer-events: none;
+}
+.face .key {
+  font-family: var(--f-mono);
+  font-weight: 500;
+  letter-spacing: .06em;
+  line-height: 1;
+  color: var(--key-colour, var(--chalk));
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .5), 0 2px 3px rgba(0, 0, 0, .24);
+  transition: color var(--press-dur) var(--ease);
+}
+.face .ico {
+  display: block;
+  color: var(--ico-colour, rgba(241, 237, 227, .9));
+  transition: color var(--press-dur) var(--ease);
+}
+.ico svg { display: block; width: 100%; height: 100%; overflow: visible; }
+
+/* 油门静置时边框就偏橙（对应 overlay 里传给 Glass 的 borderIdle） */
+.pedal.is-throttle::before {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 123, 46, .19),
+    inset 0 1px 0 0 var(--hairline),
+    inset 0 -1px 0 0 var(--shade),
+    0 1px 0 0 rgba(0, 0, 0, .26),
+    0 1px 0 1.5px rgba(0, 0, 0, .10),
+    0 1px 0 3px rgba(0, 0, 0, .07),
+    0 1px 0 4.5px rgba(0, 0, 0, .04);
+}
+
+/* 圆钮 */
+.round { border-radius: 50%; }
+.round::before, .round::after { border-radius: 50%; }
+
+/* —— 顶部：Start / Back —— */
+.sys { --k-held: .95; }
+.sys::before { border-radius: calc(var(--cqw) * 1.15); }
+
+/* —— 左上：D-pad —— */
+.dpad-plate { position: absolute; pointer-events: none; }
+.dpad-plate svg { display: block; }
+.dpad-plate .plate-fill { fill: rgba(20, 18, 15, .42); stroke: var(--edge); stroke-width: 1; transition: stroke var(--press-dur) var(--ease); }
+.dpad-plate.is-hot .plate-fill { stroke: var(--edge-held); }
+
+/* 透明命中区：D-pad 的键与换挡的两个半键，在真机上只有底板一层玻璃，
+   键自己只负责命中与"按下染色"——所以这里不能再画一遍 ::before */
+.hit {
+  position: absolute; margin: 0; padding: 0; border: 0; background: none;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.hit-tint {
+  position: absolute; inset: 0; border-radius: calc(var(--cqw) * .85);
+  background: rgba(255, 100, 26, 0);
+  transition: background var(--press-dur) var(--ease);
+  pointer-events: none;
+}
+.hit.is-held .hit-tint { background: rgba(255, 100, 26, .10); }
+.hit .arrow {
+  position: absolute; color: rgba(241, 237, 227, .42);
+  transition: color var(--press-dur) var(--ease);
+}
+.hit.is-held .arrow { color: rgba(255, 123, 46, .85); }
+
+/* —— 右上：视角键 + shifter —— */
+.shift { --k-held: 1; }
+.shift::before { border-radius: calc(var(--cqw) * 1.35); }
+.shift-half {
+  position: absolute; display: grid; place-items: center;
+  pointer-events: none;
+}
+.shift-divider {
+  position: absolute; left: 0; right: 0; height: 1px;
+  background: rgba(241, 237, 227, .10);
+}
+.shift-name {
+  position: absolute; transform: translate(-50%, -50%);
+  font-family: var(--f-mono); font-size: var(--shift-name-size);
+  color: rgba(241, 237, 227, .72); letter-spacing: .08em;
+  background: rgba(20, 18, 15, .9);
+  padding: 0 .35em;
+}
+
+/* 底板被按下时的边框（只换边色，不缩放、不辉光、不整块染色：
+   D-pad 与换挡的"按下"发生在键上，底板只做边框提示） */
+.plate.is-hot::before {
+  box-shadow:
+    inset 0 0 0 1px var(--edge-held),
+    inset 0 1px 0 0 var(--hairline),
+    inset 0 -1px 0 0 var(--shade),
+    0 1px 0 0 rgba(0, 0, 0, .26),
+    0 1px 0 1.5px rgba(0, 0, 0, .10),
+    0 1px 0 3px rgba(0, 0, 0, .07),
+    0 1px 0 4.5px rgba(0, 0, 0, .04);
+}
+
+/* —— 右下：动作簇 —— */
+.orb { --k-held: .95; border-radius: 50%; }
+.orb::before, .orb::after { border-radius: 50%; }
+.ring-nitro {
+  position: absolute; border-radius: 50%;
+  box-shadow: 0 0 0 calc(var(--cqw) * .22) rgba(169, 220, 231, .58);
+  pointer-events: none;
+}
+.ring-nitro-soft {
+  position: absolute; border-radius: 50%;
+  box-shadow: 0 0 0 calc(var(--cqw) * .34) rgba(169, 220, 231, .13);
+  pointer-events: none;
+}
+
+/* —— 左下：转向盘 —— */
+.steer {
+  --k-held: 1;              /* 面板本身不缩放，只有里面的旋钮动 */
+  transition: transform var(--press-dur) var(--ease), left 0s, top 0s;
+}
+.steer::before { border-radius: calc(var(--cqw) * 1.8); }
+/* 转向盘比按钮大得多，同样 10% 的橙会把整块染成橙色：
+   大面板只留边框与辉光，内染收到 4% */
+.steer.is-held::after { background: rgba(255, 100, 26, .04); }
+.steer-track {
+  position: absolute; border-radius: 999px;
+  background: rgba(250, 247, 240, .055);
+  box-shadow: inset 0 0 0 1px rgba(241, 237, 227, .13), inset 0 1px 0 rgba(0, 0, 0, .18);
+  overflow: hidden;
+}
+.steer-fill {
+  position: absolute; top: 50%; height: calc(var(--cqw) * .36);
+  transform: translateY(-50%);
+  background: rgba(255, 123, 46, .82);
+  border-radius: 999px;
+}
+.steer-centre {
+  position: absolute; top: 22%; bottom: 22%; width: 1px;
+  background: rgba(255, 123, 46, .48);
+}
+.steer-knob {
+  position: absolute; border-radius: 50%;
+  background: #16130F;
+  box-shadow:
+    0 0 0 1px rgba(241, 237, 227, .34),
+    0 1px 0 1px rgba(0, 0, 0, .35),
+    0 1px 0 2.5px rgba(0, 0, 0, .16);
+  display: grid; place-items: center;
+  transition: box-shadow var(--press-dur) var(--ease);
+}
+.steer.is-held .steer-knob {
+  box-shadow:
+    0 0 0 1px rgba(241, 237, 227, .58),
+    0 0 0 3px rgba(255, 100, 26, .22),
+    0 1px 0 1px rgba(0, 0, 0, .35),
+    0 1px 0 2.5px rgba(0, 0, 0, .16);
+}
+.steer-chev { position: absolute; color: rgba(241, 237, 227, .32); }
+.steer-readout {
+  position: absolute;
+  font-family: var(--f-mono); font-weight: 400;
+  color: rgba(241, 237, 227, .55);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .02em;
+  pointer-events: none;
+}
+
+
+/* ============================================================
+   文档批注：状态读取（不是设计的一部分，虚线框标出来）
+   ============================================================ */
+.sample {
+  display: flex; gap: 14px;
+  padding: 7px 11px;
+  border: 1px dashed rgba(241, 237, 227, .18);
+  border-radius: 5px;
+  background: rgba(8, 7, 6, .55);
+  font-family: var(--f-mono); font-size: 11px;
+  letter-spacing: .06em; color: var(--chalk-45);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.sample b { font-weight: 500; color: var(--chalk-70); }
+.sample .on { color: var(--orange); }
+
+/* ============================================================
+   舞台下方：材质开关
+   ============================================================ */
+.stage-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-4);
+  padding: var(--s-4) var(--s-3) var(--s-1);
+  border-top: 1px solid var(--chalk-10);
+  margin-top: 10px;
+}
+.seg { display: flex; padding: 3px; gap: 3px; background: #0E0D0C; border: 1px solid var(--chalk-10); border-radius: 8px; }
+.seg button {
+  appearance: none; border: 0; cursor: pointer;
+  padding: 9px 16px; border-radius: 6px;
+  font-family: var(--f-mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--chalk-45); background: transparent;
+  transition: color var(--dur-press) ease-out, background var(--dur-press) ease-out;
+  min-height: 40px;
+}
+.seg button[aria-pressed="true"] { color: var(--ink); background: var(--chalk); }
+.seg button:hover { color: var(--chalk); }
+.seg button[aria-pressed="true"]:hover { color: var(--ink); }
+.hint { font-family: var(--f-mono); font-size: 11px; letter-spacing: .06em; color: var(--chalk-45); }
+.hint kbd {
+  font-family: var(--f-mono); font-size: 10.5px;
+  border: 1px solid var(--chalk-20); border-bottom-width: 2px; border-radius: 4px;
+  padding: 1px 5px; color: var(--chalk-70);
+}
+
+/* ============================================================
+   右侧规格栏
+   ============================================================ */
+.spec { position: sticky; top: var(--s-5); display: grid; gap: var(--s-5); }
+.spec h2 {
+  font-family: var(--f-mono); font-weight: 500; font-size: 11px;
+  letter-spacing: .18em; text-transform: uppercase; color: var(--chalk-45);
+  margin: 0 0 var(--s-3); padding-bottom: var(--s-2);
+  border-bottom: 1px solid var(--chalk-10);
+}
+.changes { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-4); }
+.changes li { display: grid; grid-template-columns: 26px 1fr; gap: var(--s-3); }
+.changes .n {
+  font-family: var(--f-mono); font-size: 10.5px; color: var(--orange);
+  padding-top: 2px; letter-spacing: .06em;
+}
+.changes h3 { margin: 0 0 2px; font-size: 13.5px; font-weight: 500; letter-spacing: .02em; }
+.changes p { margin: 0; font-size: 12.5px; line-height: 1.75; color: var(--chalk-45); }
+.changes code {
+  font-family: var(--f-mono); font-size: 11px; color: rgba(241, 237, 227, .72);
+  background: rgba(255, 255, 255, .05); padding: 1px 4px; border-radius: 3px;
+}
+
+.spec-table { width: 100%; border-collapse: collapse; font-family: var(--f-mono); font-size: 11px; }
+.spec-table th {
+  text-align: left; font-weight: 500; color: var(--chalk-45);
+  letter-spacing: .1em; text-transform: uppercase; font-size: 9.5px;
+  padding: 0 0 6px; border-bottom: 1px solid var(--chalk-10);
+}
+.spec-table td { padding: 7px 0; border-bottom: 1px solid rgba(241, 237, 227, .06); color: var(--chalk-70); }
+.spec-table td:last-child { text-align: right; color: var(--chalk); font-variant-numeric: tabular-nums; }
+.spec-table tr:last-child td { border-bottom: 0; }
+
+.note {
+  border-left: 2px solid var(--orange);
+  padding-left: var(--s-3);
+  font-size: 12.5px; line-height: 1.8; color: var(--chalk-45);
+}
+.note b { color: var(--chalk); font-weight: 500; }
+
+/* ============================================================
+   材质解剖：三张放大的样片
+   ============================================================ */
+.anatomy { margin-top: var(--s-7); }
+.anatomy-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-4); flex-wrap: wrap; }
+.anatomy h2 {
+  font-family: var(--f-display); font-weight: 400; font-size: clamp(26px, 3vw, 40px);
+  text-transform: uppercase; letter-spacing: .02em; margin: 0;
+}
+.anatomy .sub { font-family: var(--f-mono); font-size: 11px; letter-spacing: .1em; color: var(--chalk-45); }
+
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-4); margin-top: var(--s-5); }
+.card {
+  border: 1px solid var(--chalk-10); border-radius: var(--r-md);
+  background: linear-gradient(180deg, var(--ink-3), var(--ink-2));
+  padding: var(--s-4); display: grid; gap: var(--s-3);
+}
+.card .demo {
+  position: relative; height: 150px; border-radius: 8px; overflow: hidden;
+  background:
+    radial-gradient(60% 70% at 50% 120%, rgba(255, 123, 46, .30), transparent 70%),
+    linear-gradient(180deg, #10141b, #1d1a16 60%, #0d0c0b);
+  display: grid; place-items: center;
+}
+.card h3 { margin: 0; font-size: 13px; font-weight: 500; letter-spacing: .04em; }
+.card p { margin: 0; font-size: 12.5px; line-height: 1.75; color: var(--chalk-45); }
+.card .mini {
+  --cqw: 8px;               /* 放大样片：1cqw 按 8px 算，控件看起来是 4 倍 */
+  position: relative;
+}
+
+/* 三张样片共用材质 */
+.demo .glass {
+  position: relative;
+  border-radius: calc(var(--cqw) * 1.25);
+  background: linear-gradient(180deg, var(--glass-top, rgba(20,18,15,.30)), var(--glass-bot, rgba(20,18,15,.52)));
+  box-shadow:
+    inset 0 0 0 1px var(--edge, rgba(241, 237, 227, .19)),
+    inset 0 1px 0 0 rgba(255, 255, 255, .078),
+    inset 0 -1px 0 0 rgba(0, 0, 0, .18),
+    0 1px 0 0 rgba(0, 0, 0, .26),
+    0 1px 0 1.5px rgba(0, 0, 0, .10),
+    0 1px 0 3px rgba(0, 0, 0, .07),
+    0 1px 0 4.5px rgba(0, 0, 0, .04);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: calc(var(--cqw) * .2);
+  color: var(--chalk);
+}
+.demo .glass .key { font-family: var(--f-mono); font-size: calc(var(--cqw) * 1.05); letter-spacing: .06em; }
+.demo .glass .ico { width: calc(var(--cqw) * 2.85); height: calc(var(--cqw) * 2.85); color: rgba(241, 237, 227, .9); }
+.demo .glass.held {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 123, 46, .78),
+    inset 0 1px 0 0 rgba(255, 255, 255, .078),
+    inset 0 -1px 0 0 rgba(0, 0, 0, .18),
+    0 0 0 2px rgba(255, 123, 46, .16),
+    0 0 0 4.5px rgba(255, 123, 46, .07),
+    0 1px 0 0 rgba(0, 0, 0, .26);
+}
+.demo .glass.held::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: rgba(255, 100, 26, .10);
+}
+/* 自动按压循环：展示 130ms 的缓动，而不是硬跳 */
+@keyframes pressloop {
+  0%, 22%   { transform: scale(1); }
+  32%, 62%  { transform: scale(.95); }
+  74%, 100% { transform: scale(1); }
+}
+.demo .pressloop { animation: pressloop 2.6s var(--ease) infinite; }
+
+/* ============================================================
+   页脚：落地映射
+   ============================================================ */
+.foot {
+  margin-top: var(--s-8); padding-top: var(--s-5);
+  border-top: 1px solid var(--chalk-10);
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--s-5);
+}
+.foot div h3 {
+  font-family: var(--f-mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--chalk-45); margin: 0 0 6px;
+}
+.foot div p { margin: 0; font-size: 12.5px; line-height: 1.8; color: var(--chalk-70); }
+.foot code { font-family: var(--f-mono); font-size: 11.5px; color: var(--orange); }
+
+/* ============================================================
+   v1 材质：改动前的样子
+   平涂 .42 + 边框外一圈 black 40 的硬环 + 没有高光/暗线/辉光，
+   按下是硬切。就是 C++ 上一版 Glass() 画的东西。
+   ============================================================ */
+[data-material="v1"] .deck,
+[data-material="v1"] .demo {
+  --glass-top: rgba(20, 18, 15, .42);
+  --glass-bot: rgba(20, 18, 15, .42);
+  --hairline: transparent;
+  --shade: transparent;
+  --glow-1: transparent;
+  --glow-2: transparent;
+  --tint: transparent;
+  --press-dur: 0ms;
+}
+[data-material="v1"] .ctrl::before,
+[data-material="v1"] .demo .glass {
+  box-shadow:
+    inset 0 0 0 1px var(--edge),
+    0 0 0 1px rgba(0, 0, 0, .40);
+}
+[data-material="v1"] .ctrl.is-held::before {
+  box-shadow: inset 0 0 0 1px var(--edge-held), 0 0 0 1px rgba(0, 0, 0, .40);
+}
+[data-material="v1"] .pedal.is-throttle::before {
+  box-shadow: inset 0 0 0 1px rgba(255, 123, 46, .19), 0 0 0 1px rgba(0, 0, 0, .40);
+}
+[data-material="v1"] .steer-knob { box-shadow: 0 0 0 1px rgba(241, 237, 227, .34); }
+[data-material="v1"] .ring-nitro { box-shadow: 0 0 0 calc(var(--cqw) * .22) rgba(169, 220, 231, .72); }
+[data-material="v1"] .ring-nitro-soft { box-shadow: none; }
+[data-material="v1"] .dpad-plate .plate-fill { fill: rgba(20, 18, 15, .42); stroke: var(--edge); }
+[data-material="v1"] .demo .pressloop { animation: none; }
+
+/* ============================================================
+   焦点、降级、响应式
+   ============================================================ */
+:focus-visible { outline: 2px solid var(--orange); outline-offset: 3px; border-radius: 4px; }
+.ctrl:focus-visible { outline: 2px solid var(--orange); outline-offset: 4px; }
+
+@media (max-width: 1180px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .spec { position: static; }
+  .masthead { grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .lead { max-width: 62ch; }
+}
+@media (max-width: 720px) {
+  .wrap { padding: var(--s-5) var(--s-4) var(--s-7); }
+  .cards { grid-template-columns: 1fr; }
+  h1 { font-size: clamp(36px, 11vw, 56px); }
+  .stage-shell { padding: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  /* 小屏：舞台保留一个最小宽度，让 cqw 控件还能看清，左右滑动看全 */
+  .stage { min-width: 640px; touch-action: pan-x; }
+  .sample, .hint { display: none; }
+  .stage-bar::after {
+    content: "← 左右滑动看完整画面 →";
+    font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .08em;
+    color: var(--chalk-45);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ======================= 报头 ======================= -->
+  <header class="masthead">
+    <div>
+      <p class="eyebrow">SpeedBreaker · Touch Deck · Material v2</p>
+      <h1>
+        Touch<br>Deck
+        <span class="thin">触控层材质第二版</span>
+      </h1>
+    </div>
+    <div>
+      <p class="lead">
+        同一套 <b>cqw 布局</b>，只换材质：玻璃从平涂改成<b>上透下实的纵向渐变</b>，投影从一圈硬描边改成<b>三道软环</b>，
+        按住时控件<b>缓动收缩</b>并向外透出橙色辉光。全部用 ImGui 的 draw list 就能画出来——没有依赖画面模糊的层，
+        所以效果图里也没有 <code>backdrop-filter</code>：它落不了地。
+      </p>
+      <div class="tokens">
+        <span class="token"><i style="background:#F1EDE3"></i>CHALK</span>
+        <span class="token"><i style="background:#FF7B2E"></i>ORANGE · 唯一强调</span>
+        <span class="token"><i style="background:#A9DCE7"></i>NITRO</span>
+        <span class="token"><i style="background:rgba(20,18,15,.85);box-shadow:inset 0 0 0 1px rgba(241,237,227,.3)"></i>GLASS 20,18,15</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ======================= 主区 ======================= -->
+  <div class="layout">
+
+    <section>
+      <div class="stage-shell">
+        <div class="stage" id="stage" data-scene="dusk">
+          <!-- 游戏画面：一条夜路 -->
+          <div class="scene" aria-hidden="true">
+            <div class="sky"></div>
+            <div class="sun"></div>
+            <div class="hills"></div>
+            <div class="ground"></div>
+            <div class="fog"></div>
+            <div class="road"></div>
+            <div class="lane"></div>
+            <div class="kerb"></div>
+            <div class="kerb r"></div>
+            <div class="streaks"></div>
+            <div class="vignette"></div>
+          </div>
+
+          <!-- 触控层：控件由 JS 按 touch_layout.h 的常量生成 -->
+          <div class="deck" id="deck" aria-label="触控层预览（可按住、可拖动转向）">
+            <div class="grab-zone" aria-hidden="true"><span>转向抓取区 · 0–42 × 16–56.25 cqw</span></div>
+          </div>
+        </div>
+
+        <div class="stage-bar">
+          <div class="seg" role="group" aria-label="材质版本">
+            <button type="button" id="btn-v2" aria-pressed="true">材质 v2</button>
+            <button type="button" id="btn-v1" aria-pressed="false">改动前</button>
+          </div>
+          <div class="seg" role="group" aria-label="背景">
+            <button type="button" id="btn-dusk" aria-pressed="true">黄昏</button>
+            <button type="button" id="btn-night" aria-pressed="false">夜景</button>
+          </div>
+          <div class="seg" role="group" aria-label="批注">
+            <button type="button" id="btn-grab" aria-pressed="false">抓取区</button>
+          </div>
+          <!-- 文档批注：这行不是设计的一部分 -->
+          <div class="sample" id="sample" aria-live="off">
+            <span>RT <b data-f="rt">0.00</b></span>
+            <span>LT <b data-f="lt">0.00</b></span>
+            <span>STEER <b data-f="steer">+0°</b></span>
+            <span>BTN <b data-f="btn">——</b></span>
+          </div>
+          <p class="hint">
+            <kbd>Tab</kbd> 到控件后 <kbd>Space</kbd> 按住 · 转向盘可直接拖 · <kbd>1</kbd>/<kbd>2</kbd> 切材质
+          </p>
+        </div>
+      </div>
+
+  <!-- ======================= 材质解剖 ======================= -->
+  <section class="anatomy">
+    <div class="anatomy-head">
+      <h2>材质解剖</h2>
+      <span class="sub">同一枚控件 · 三种状态 · 放大 3×</span>
+    </div>
+    <div class="cards">
+      <article class="card">
+        <div class="demo">
+          <div class="mini">
+            <div class="glass" style="width: calc(var(--cqw) * 15.55); height: calc(var(--cqw) * 7.2); border-radius: calc(var(--cqw) * 1.25);">
+              <span class="key">RT</span>
+              <span class="ico"><svg viewBox="0 0 24 24"><use href="#i-throttle"></use></svg></span>
+            </div>
+          </div>
+        </div>
+        <h3>静止 · 渐变与软环</h3>
+        <p>上端透、下端实；三道环贴着边框，读起来是一层影而不是一圈描边。踏板上的 RT 用橙色——它是唯一"默认就亮"的键。</p>
+      </article>
+
+      <article class="card">
+        <div class="demo">
+          <div class="mini">
+            <div class="glass held" style="width: calc(var(--cqw) * 9.35); height: calc(var(--cqw) * 9.35); border-radius: 50%;">
+              <span class="key" style="color:var(--key-b)">B</span>
+              <span class="ico" style="width: calc(var(--cqw) * 3.25); height: calc(var(--cqw) * 3.25); color: var(--orange);"><svg viewBox="0 0 24 24"><use href="#i-nitro"></use></svg></span>
+            </div>
+          </div>
+        </div>
+        <h3>按住 · 辉光与内染</h3>
+        <p>边框转橙、内壁染一层 10% 橙，外面两圈很淡的辉光把控件从路面上"抬"起来；图标同时亮成橙色。收缩 5%。</p>
+      </article>
+
+      <article class="card">
+        <div class="demo">
+          <div class="mini">
+            <div class="glass pressloop" style="width: calc(var(--cqw) * 10.4); height: calc(var(--cqw) * 7.2); border-radius: calc(var(--cqw) * 1.25);">
+              <span class="key">LT</span>
+              <span class="ico"><svg viewBox="0 0 24 24"><use href="#i-brake"></use></svg></span>
+            </div>
+          </div>
+        </div>
+        <h3>按压 · 缓动 130ms</h3>
+        <p>循环演示按下—抬起。手指落下的那一帧就已经在动了，但走的是曲线：不会有"啪"地跳一下的廉价感。</p>
+      </article>
+    </div>
+  </section>
+    </section>
+
+    <!-- ======================= 规格栏 ======================= -->
+    <aside class="spec">
+      <div>
+        <h2>这版改了什么</h2>
+        <ol class="changes">
+          <li>
+            <span class="n">01</span>
+            <div>
+              <h3>纵向渐变玻璃</h3>
+              <p>上端 <code>.30</code>、下端 <code>.52</code>，平均仍是原来的 <code>.42</code>：路面照样透得进来，但控件有了"厚度"。圆角处用两段圆头 + 中间四色四边形拼出来。</p>
+            </div>
+          </li>
+          <li>
+            <span class="n">02</span>
+            <div>
+              <h3>三道软环代替硬边影</h3>
+              <p>向外 1 / 2.5 / 4pt，透明度 26 / 16 / 10，整体下移 1pt。ImGui 没有模糊，三道环在这个尺寸下读起来就是一条软边，同时保证亮路面上不糊。</p>
+            </div>
+          </li>
+          <li>
+            <span class="n">03</span>
+            <div>
+              <h3>内侧高光 + 底线</h3>
+              <p>顶端两道发丝高光（20 / 10），底边一道 <code>black 46</code>：玻璃的倒角与厚度，而不是一根亮线。</p>
+            </div>
+          </li>
+          <li>
+            <span class="n">04</span>
+            <div>
+              <h3>按住的橙色辉光</h3>
+              <p>边框由粉笔白插值到橙 <code>.78</code>，外侧再补 2pt / 4.5pt 两圈 <code>.16</code> / <code>.07</code>：按下去像是亮起来，不是换个颜色。</p>
+            </div>
+          </li>
+          <li>
+            <span class="n">05</span>
+            <div>
+              <h3>按压缓动</h3>
+              <p>每控件一个 0→1 的量，按下 16/s、松开 10/s 逼近（约 60ms / 120ms）。缩放、内染、边框、图标颜色都跟着它走，不再逐帧硬切。</p>
+            </div>
+          </li>
+          <li>
+            <span class="n">06</span>
+            <div>
+              <h3>氮气环的呼吸</h3>
+              <p>冷色环静止 <code>.50</code>、按住 <code>.78</code>，外面再套一圈更淡的 <code>.34</code> 宽环当光晕。环仍是满圈——游戏里的氮气余量读不到，编一个进度就是撒谎。</p>
+            </div>
+          </li>
+          <li>
+            <span class="n">07</span>
+            <div>
+              <h3>大面板的内染收着来</h3>
+              <p>按钮按下去染 10% 橙是提神，26 cqw 的转向盘整块染橙就成了色块。面板只留边框与辉光，内染降到 4%；键名与图标的间距也从 0.12 放到 0.24 cqw，小圆钮上不再挤成一坨。</p>
+            </div>
+          </li>
+        </ol>
+      </div>
+
+      <div>
+        <h2>关键数值</h2>
+        <table class="spec-table">
+          <thead><tr><th>项</th><th>值</th></tr></thead>
+          <tbody>
+            <tr><td>玻璃上/下</td><td>.30 / .52</td></tr>
+            <tr><td>边框 静/按</td><td>.19 / .78</td></tr>
+            <tr><td>软环</td><td>1 · 2.5 · 4 pt</td></tr>
+            <tr><td>按压时长</td><td>60 / 120 ms</td></tr>
+            <tr><td>收缩 圆钮/踏板</td><td>.95 / .97</td></tr>
+            <tr><td>面板内染</td><td>4%</td></tr>
+            <tr><td>键名/图标间距</td><td>.24 cqw</td></tr>
+            <tr><td>画布边距</td><td>2.65 cqw</td></tr>
+            <tr><td>触控目标</td><td>≥ 7.45 cqw</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note">
+        <b>没有做的事</b>：不加背景模糊、不加模糊投影、不加玻璃折射。ImGui 读不到它画在上面的那一帧，
+        这些层在真机上只能是假的；效果图里也不画，免得看完落不了地。
+      </div>
+    </aside>
+  </div>
+
+  <!-- ======================= 页脚 ======================= -->
+  <footer class="foot">
+    <div>
+      <h3>落地位置</h3>
+      <p><code>runtime/ui/touch_overlay.cpp</code><br>Glass / GlassCircle 两个函数换掉材质，其余调用点只换参数。</p>
+    </div>
+    <div>
+      <h3>几何不变</h3>
+      <p><code>runtime/hid/touch_layout.h</code> 一个数字都没改：本页所有位置都按它算，确认后不需要回调布局。</p>
+    </div>
+    <div>
+      <h3>判定不变</h3>
+      <p><code>runtime/hid/touch_input.h</code> 不动。按住、滚指、拖拽的规则与这版材质无关。</p>
+    </div>
+    <div>
+      <h3>在真机上看</h3>
+      <p>iOS/iPad 构建直接生效；桌面想看效果，<code>NFSMW_TOUCH_MOUSE=1</code> 用鼠标当一根手指。</p>
+    </div>
+  </footer>
+</div>
+
+<!-- ======================= 图标：设计稿 24×24 原始几何 ======================= -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-steer" viewBox="0 0 24 24" fill="none">
+      <g stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="8.25"/><circle cx="12" cy="12" r="2.45"/>
+        <path d="M12 3.75v5.8M5 16.1l4.8-2.9M19 16.1l-4.8-2.9"/>
+      </g>
+      <circle cx="12" cy="12" r=".95" fill="currentColor"/>
+    </symbol>
+    <symbol id="i-throttle" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M3 6.3 8.8 12 3 17.7v-3.8l2.2-1.9L3 10.1Z"/>
+      <path d="M10.2 6.3 16 12l-5.8 5.7v-3.8l2.2-1.9-2.2-1.9Z"/>
+      <path d="M18.2 6.3h2.6v11.4h-2.6z" opacity=".35"/>
+    </symbol>
+    <symbol id="i-brake" viewBox="0 0 24 24" fill="none">
+      <path d="M12 3.1a8.9 8.9 0 1 0 0 17.8 8.9 8.9 0 0 0 0-17.8Zm0 3.2a5.7 5.7 0 1 1 0 11.4 5.7 5.7 0 0 1 0-11.4Z" fill="currentColor" fill-rule="evenodd"/>
+      <circle cx="12" cy="12" r="2.15" fill="currentColor"/>
+      <g stroke="currentColor" stroke-width="2.05" stroke-linecap="round">
+        <path d="M17.7 6.1h2.3v4.2"/><path d="M5.2 18.6h2.1" opacity=".5"/>
+      </g>
+      <g fill="currentColor" opacity=".4">
+        <circle cx="6.4" cy="9.2" r=".65"/><circle cx="17.6" cy="14.8" r=".65"/><circle cx="9.2" cy="17.6" r=".65"/>
+      </g>
+    </symbol>
+    <symbol id="i-handbrake" viewBox="0 0 24 24" fill="none">
+      <g stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 19h9a4 4 0 0 0 4-4V9.4"/><path d="M15.5 9.7 19 6.2l3 3.1"/><path d="M8 15.5h3.6"/>
+      </g>
+      <circle cx="5" cy="19" r="1.55" fill="currentColor"/>
+      <path d="M16.4 6.9 18.8 4.5" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-nitro" viewBox="0 0 24 24" fill="none">
+      <g stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9.3 2.9h5.4v3.2l1.4 2v11.1a1.7 1.7 0 0 1-1.7 1.7h-4.8a1.7 1.7 0 0 1-1.7-1.7V8.1l1.4-2V2.9Z"/>
+        <path d="M8.1 9.5h7.8"/><path d="M9.1 6.1h5.8" opacity=".35"/>
+      </g>
+      <path d="m13.9 10.4-3.7 4.9h2.5l-.9 3.9 3.7-5.4h-2.5l.9-3.4Z" fill="currentColor"/>
+      <circle cx="16.3" cy="15.1" r=".7" fill="currentColor" opacity=".55"/>
+    </symbol>
+    <symbol id="i-bullet" viewBox="0 0 24 24" fill="none">
+      <g stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6.7 3.1h10.6M6.7 20.9h10.6M8.2 3.1c0 4.2 3.8 5.2 3.8 8.9s-3.8 4.6-3.8 8.9M15.8 3.1c0 4.2-3.8 5.2-3.8 8.9s3.8 4.6 3.8 8.9"/>
+        <path d="M9.4 5.6h5.2L12 8.6Z" fill="currentColor" stroke="none" opacity=".8"/>
+        <path d="M9.4 18.4c.3-1.3 1.3-2.2 2.6-3 1.3.8 2.3 1.7 2.6 3Z" fill="currentColor" stroke="none" opacity=".8"/>
+      </g>
+      <path d="M3.2 7.1h1.4M3.2 11.9h1.4M19.4 7.1h1.4M19.4 11.9h1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity=".5"/>
+    </symbol>
+    <symbol id="i-rearview" viewBox="0 0 24 24" fill="none">
+      <rect x="3" y="6" width="18" height="8" rx="3.5" fill="currentColor" fill-opacity=".13" stroke="currentColor" stroke-width="2.1"/>
+      <path d="M6.2 9.2h11.6M12 14v3.2M9.1 20h5.8" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
+      <path d="M7 11.6c1.3-.9 3.1-1.4 5-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".45"/>
+    </symbol>
+    <symbol id="i-quick" viewBox="0 0 24 24" fill="none">
+      <rect x="5.2" y="5.8" width="15.8" height="7.3" rx="3.2" fill="currentColor" fill-opacity=".13" stroke="currentColor" stroke-width="2.1"/>
+      <path d="M7.8 9h10.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".5"/>
+      <path d="M5.7 15.8 3 18.7M8.7 16.7l-1.5 2.7M14.3 16.7l-1.5 2.7" stroke="currentColor" stroke-width="2.05" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24" fill="none">
+      <rect x="3" y="7" width="12" height="10" rx="2.3" fill="currentColor" fill-opacity=".15" stroke="currentColor" stroke-width="2.1"/>
+      <path d="m15 10.4 6-3.3v9.8l-6-3.3Z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+      <circle cx="7.7" cy="12" r="2.1" stroke="currentColor" stroke-width="1.8"/>
+    </symbol>
+    <symbol id="i-up" viewBox="0 0 24 24" fill="none"><path d="m5.3 15.1 6.7-6.7 6.7 6.7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24" fill="none"><path d="m5.3 8.9 6.7 6.7 6.7-6.7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24" fill="none"><path d="m15.1 5.3-6.7 6.7 6.7 6.7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24" fill="none"><path d="m8.9 5.3 6.7 6.7-6.7 6.7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24" fill="currentColor">
+      <rect x="6.1" y="4.6" width="4.2" height="14.8" rx="1.6"/><rect x="13.7" y="4.6" width="4.2" height="14.8" rx="1.6"/>
+    </symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24" fill="none">
+      <g stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4.2 10.1a8.1 8.1 0 1 1 .7 5.6"/><path d="M4 4.7v5.5h5.5"/>
+        <path d="M8.3 14.7h7.4l1.1-2.7a1.6 1.6 0 0 0-1.5-2.2H9.2a1.6 1.6 0 0 0-1.5 1l-1.1 2.5"/>
+      </g>
+      <circle cx="9" cy="16.1" r="1.15" fill="currentColor"/><circle cx="15.5" cy="16.1" r="1.15" fill="currentColor"/>
+    </symbol>
+    <symbol id="i-shop" viewBox="0 0 24 24" fill="none">
+      <path d="M5.2 8.2h13.6l-1 12H6.2Z" fill="currentColor" fill-opacity=".13" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/>
+      <path d="M8.6 8.2V6.6a3.4 3.4 0 0 1 6.8 0v1.6" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
+      <path d="m12 11.2.9 1.9 2.1.3-1.5 1.5.4 2.1-1.9-1-1.9 1 .4-2.1-1.5-1.5 2.1-.3.9-1.9Z" fill="currentColor"/>
+    </symbol>
+    <symbol id="i-blacklist" viewBox="0 0 24 24" fill="none">
+      <path d="M6 3.2h12v17l-3-2-3 2-3-2-3 2Z" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/>
+      <circle cx="12" cy="8.8" r="2.2" stroke="currentColor" stroke-width="2"/>
+      <path d="M8.7 15.1a3.8 3.8 0 0 1 6.6 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M8 5.5h2M14 5.5h2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" opacity=".5"/>
+    </symbol>
+    <symbol id="i-map" viewBox="0 0 24 24" fill="none">
+      <path d="m3.2 5.8 5.4-2.1 6.8 2.1 5.4-2.1v14.5l-5.4 2.1-6.8-2.1-5.4 2.1Z" fill="currentColor" fill-opacity=".11" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/>
+      <path d="M8.6 3.7v14.5M15.4 5.8v14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M12 8.6 14.1 12l-2.1 3.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" opacity=".6"/>
+    </symbol>
+    <symbol id="i-sms" viewBox="0 0 24 24" fill="none">
+      <path d="M4.1 5.1h15.8v11.4H9.3L4.1 20Z" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/>
+      <path d="M7.6 9h8.8M7.6 12.3h5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+  </defs>
+</svg>
+
+<script>
+/* ============================================================================
+   触控层生成器
+   所有数字都来自 runtime/hid/touch_layout.h 的 layout:: 常量（单位 cqw），
+   以及 ui/touch_overlay.cpp 里每个控件用的图标尺寸与键名。
+   改一处数字，效果图与真机就一起变——这是这张图的意义。
+   ========================================================================== */
+(() => {
+  'use strict';
+
+  const L = {
+    // 画布
+    margin: 2.65,
+    aspect: 16 / 9,          // 16:9 时画面高 = 56.25 cqw
+    // 转向盘
+    steerW: 26, steerH: 11.1, steerPadX: 1.35, steerTrackTop: 3.55,
+    trackH: 4.9, knobD: 5.9, travel: .44, fillH: .36,
+    // 动作簇
+    actionW: 27, actionH: 18.4, throttleW: 15.55, brakeW: 10.4, pedalH: 7.2,
+    orbTop: 8.75, nitroD: 9.35, orbD: 7.45, sbLeft: 9.35,
+    // D-pad
+    dpadCell: 4.45,
+    // Start / Back
+    sysTop: 2.7, sysH: 4.05, sysGap: .65, sysW: 8.3,
+    // 视角
+    viewD: 5.45, viewGap: .55,
+    // 换挡
+    shiftW: 6.9, shiftH: 4.35, shiftBelowViews: 6.9,
+  };
+  const HEIGHT = 100 / L.aspect * (9 / 16) * 1; // 56.25 —— 以 16:9 记
+  const H = 56.25;
+
+  const stage = document.getElementById('stage');
+  const deck = document.getElementById('deck');
+  const sample = document.getElementById('sample');
+
+  // ---- 小工具 ---------------------------------------------------------------
+  const el = (tag, cls, parent) => {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (parent) parent.appendChild(n);
+    return n;
+  };
+  const cq = (n) => `calc(var(--cqw) * ${n})`;
+  const at = (node, { x, y, w, h }) => {
+    node.style.left = cq(x); node.style.top = cq(y);
+    node.style.width = cq(w); node.style.height = cq(h);
+  };
+  const ico = (id) => `<svg viewBox="0 0 24 24"><use href="#i-${id}"></use></svg>`;
+
+  // 控件：<button class="ctrl"> + 玻璃面（::before/::after）+ 内容
+  function control({ cls = '', shape = 'rect', radius, held, key, icoId, keyColour, icoColour,
+                     keySize, icoSize, gap = .15, box, label }) {
+    const b = el('button', `ctrl ${cls}${shape === 'round' ? ' round' : ''}`, deck);
+    b.type = 'button';
+    b.setAttribute('aria-label', label);
+    if (radius) b.style.borderRadius = cq(radius);
+    if (held) b.style.setProperty('--k-held', held);
+    at(b, box);
+    const face = el('div', 'face', b);
+    if (key) {
+      const k = el('span', 'key', face);
+      k.textContent = key;
+      k.style.fontSize = cq(keySize);
+      if (keyColour) k.style.setProperty('--key-colour', keyColour);
+    }
+    const i = el('span', 'ico', face);
+    i.style.width = cq(icoSize); i.style.height = cq(icoSize);
+    if (icoColour) i.style.setProperty('--ico-colour', icoColour);
+    i.innerHTML = ico(icoId);
+    face.style.setProperty('--gap', gap);
+    return b;
+  }
+
+  // ---- 左上：D-pad（一块十字底板 + 四个键） ---------------------------------
+  // 底板按 DpadPlus 的 12 个顶点画：外角倒圆、四个内角保持直角。
+  // 坐标相对底板自身（0..3c），viewBox 与它同尺度，所以不会被拉伸。
+  function dpadPlate() {
+    const c = L.dpadCell, r = 1.0;
+    const v = [
+      [c, 0], [2 * c, 0], [2 * c, c], [3 * c, c],
+      [3 * c, 2 * c], [2 * c, 2 * c], [2 * c, 3 * c],
+      [c, 3 * c], [c, 2 * c], [0, 2 * c],
+      [0, c], [c, c],
+    ];
+    const P = (p) => `${p[0].toFixed(3)} ${p[1].toFixed(3)}`;
+    let d = '';
+    for (let i = 0; i < v.length; i++) {
+      const prev = v[(i + 11) % v.length], cur = v[i], next = v[(i + 1) % v.length];
+      const d1 = [prev[0] - cur[0], prev[1] - cur[1]];
+      const d2 = [next[0] - cur[0], next[1] - cur[1]];
+      const len = (a) => Math.hypot(a[0], a[1]) || 1;
+      const u1 = d1.map((n) => n / len(d1)), u2 = d2.map((n) => n / len(d2));
+      // 叉积符号：>0 是外角（凸），倒圆；<0 是内角（两条臂相接），保持直角
+      const cross = u1[0] * u2[1] - u1[1] * u2[0];
+      const p1 = [cur[0] + u1[0] * r, cur[1] + u1[1] * r];
+      const p2 = [cur[0] + u2[0] * r, cur[1] + u2[1] * r];
+      d += (i === 0 ? `M ${P(p1)}` : ` L ${P(p1)}`);
+      d += cross > 0.0001 ? ` A ${r} ${r} 0 0 1 ${P(p2)}` : ` L ${P(cur)} L ${P(p2)}`;
+    }
+    d += ' Z';
+
+    const box = el('div', 'dpad-plate', deck);
+    box.dataset.plate = '';
+    at(box, { x: L.margin, y: L.margin, w: 3 * c, h: 3 * c });
+    box.innerHTML = `<svg viewBox="0 0 ${3 * c} ${3 * c}" width="100%" height="100%">
+        <path class="plate-fill" d="${d}" fill-rule="evenodd" vector-effect="non-scaling-stroke"/>
+      </svg>`;
+    return box;
+  }
+
+  function dpad() {
+    const plate = dpadPlate();
+    const c = L.dpadCell, m = L.margin;
+    const keys = [
+      { ctrl: 'dpadUp',    icon: 'shop',      arrow: 'up',    x: m + c,     y: m,         out: [0, -1] },
+      { ctrl: 'dpadLeft',  icon: 'map',       arrow: 'left',  x: m,         y: m + c,     out: [-1, 0] },
+      { ctrl: 'dpadRight', icon: 'sms',       arrow: 'right', x: m + 2 * c, y: m + c,     out: [1, 0] },
+      { ctrl: 'dpadDown',  icon: 'blacklist', arrow: 'down',  x: m + c,     y: m + 2 * c, out: [0, 1] },
+    ];
+    for (const k of keys) {
+      // 键本身：透明命中区 + 按下时的一层淡橙（底板不跟着缩放）
+      const b = el('button', 'hit', deck);
+      b.type = 'button';
+      b.setAttribute('aria-label', `D-pad ${k.ctrl}`);
+      at(b, { x: k.x, y: k.y, w: c, h: c });
+      const tint = el('span', 'hit-tint', b);
+      tint.style.borderRadius = 'calc(var(--cqw) * .85)';
+
+      // 图标在键中心
+      const face = el('div', 'face', b);
+      const i = el('span', 'ico', face);
+      i.style.width = cq(1.75); i.style.height = cq(1.75);
+      i.style.setProperty('--ico-colour', 'rgba(241,237,227,.78)');
+      i.innerHTML = ico(k.icon);
+
+      // 方向箭头贴在键的外缘（同一个"向外"规则）
+      const a = el('span', 'arrow', b);
+      a.style.width = cq(.85); a.style.height = cq(.85);
+      a.innerHTML = ico(k.arrow);
+      a.style.left = '50%'; a.style.top = '50%';
+      const off = c / 2 - .35 - .85 / 2;
+      a.style.transform = `translate(calc(-50% + ${(k.out[0] * off).toFixed(2)}cqw), calc(-50% + ${(k.out[1] * off).toFixed(2)}cqw))`;
+
+      bindHold(b, { control: k.ctrl, plated: plate });
+    }
+  }
+
+  // ---- 顶部：Start / Back ---------------------------------------------------
+  function sysButtons() {
+    const total = 2 * L.sysW + L.sysGap;
+    const x = 50 - total / 2;
+    const list = [
+      { key: 'START', icon: 'pause', x, label: 'Start' },
+      { key: 'BACK', icon: 'reset', x: x + L.sysW + L.sysGap, label: 'Back' },
+    ];
+    for (const s of list) {
+      const b = control({
+        cls: 'sys', radius: 1.15, held: .95, key: s.key, icoId: s.icon, icoSize: 1.55,
+        keyColour: 'var(--chalk)', keySize: 1.0, gap: .24, icoColour: 'rgba(241,237,227,.78)',
+        label: s.label, box: { x: s.x, y: L.sysTop, w: L.sysW, h: L.sysH },
+      });
+      bindHold(b, { control: s.label.toLowerCase() });
+    }
+  }
+
+  // ---- 右上：三个视角键 -----------------------------------------------------
+  function viewButtons() {
+    const total = 3 * L.viewD + 2 * L.viewGap;
+    const x = 100 - L.margin - total;
+    const list = [
+      { ctrl: 'rearView', icon: 'rearview', key: 'Y', colour: 'var(--key-y)' },
+      { ctrl: 'quickRearView', icon: 'quick', key: 'LB', colour: 'var(--chalk)' },
+      { ctrl: 'camera', icon: 'camera', key: 'RB', colour: 'var(--chalk)' },
+    ];
+    list.forEach((v, n) => {
+      const b = control({
+        cls: 'view', shape: 'round', held: .94, key: v.key, icoId: v.icon, keyColour: v.colour,
+        keySize: .9, icoSize: 2.02, gap: .24, label: v.ctrl,
+        box: { x: x + n * (L.viewD + L.viewGap), y: L.margin, w: L.viewD, h: L.viewD },
+      });
+      bindHold(b, { control: v.ctrl });
+    });
+  }
+
+  // ---- 右上：换挡（一块板，两个半键，名字压在分隔线上） --------------------
+  function shifter() {
+    const x = 100 - L.margin - L.shiftW;
+    const y = L.margin + L.shiftBelowViews;
+    const w = L.shiftW, half = L.shiftH, h = 2 * half;
+    const plate = el('div', 'ctrl plate shift', deck);
+    plate.style.borderRadius = cq(1.35);
+    plate.dataset.plate = '';
+    at(plate, { x, y, w, h });
+    plate.setAttribute('aria-label', 'Shifter (RS)');
+    plate.setAttribute('role', 'group');
+
+    const up = el('div', 'shift-half', plate);
+    up.style.left = cq(0); up.style.top = cq(0); up.style.width = cq(w); up.style.height = cq(half);
+    up.innerHTML = `<span class="ico" style="width:${cq(1.9)};height:${cq(1.9)};color:rgba(241,237,227,.78)">${ico('up')}</span>`;
+
+    const down = el('div', 'shift-half', plate);
+    down.style.left = cq(0); down.style.top = cq(half); down.style.width = cq(w); down.style.height = cq(half);
+    down.innerHTML = `<span class="ico" style="width:${cq(1.9)};height:${cq(1.9)};color:rgba(241,237,227,.78)">${ico('down')}</span>`;
+
+    const line = el('div', 'shift-divider', plate);
+    line.style.top = '50%';
+
+    const name = el('div', 'shift-name', plate);
+    name.textContent = 'RS';
+    name.style.setProperty('--shift-name-size', cq(.95));
+    name.style.left = '50%'; name.style.top = '50%';
+
+    // 两半各自命中：真机上由 HitTest 分给 ShiftUp / ShiftDown，
+    // 玻璃只有底板一层，按下只把那一半染色（对应 overlay 的 0.94 内缩块）
+    const mk = (which, y0) => {
+      const b = el('button', 'hit', plate);
+      b.type = 'button';
+      b.style.cssText = `left:0;top:${cq(y0)};width:${cq(w)};height:${cq(half)}`;
+      b.setAttribute('aria-label', `Shift ${which}`);
+      const tint = el('span', 'hit-tint', b);
+      tint.style.inset = '4%';
+      tint.style.borderRadius = cq(1.0);
+      bindHold(b, { control: `shift${which}`, plated: plate });
+    };
+    mk('Up', 0); mk('Down', half);
+  }
+
+  // ---- 右下：动作簇 ---------------------------------------------------------
+  function actions() {
+    const cx = 100 - L.margin - L.actionW;         // 簇左
+    const cy = H - L.margin - L.actionH;           // 簇上
+    const pedalY = cy + L.actionH - L.pedalH;
+
+    // 油门（右）与刹车（左）
+    const throttle = control({
+      cls: 'pedal is-throttle', radius: 1.25, held: .97, key: 'RT', icoId: 'throttle', keySize: 1.05, icoSize: 2.8, gap: .26,
+      icoColour: 'var(--orange)', label: 'Throttle',
+      box: { x: cx + L.actionW - L.throttleW, y: pedalY, w: L.throttleW, h: L.pedalH },
+    });
+    bindHold(throttle, { control: 'throttle' });
+
+    const brake = control({
+      cls: 'pedal', radius: 1.25, held: .97, key: 'LT', icoId: 'brake', keySize: 1.05, icoSize: 2.8, gap: .26,
+      icoColour: 'rgba(241,237,227,.9)', label: 'Brake',
+      box: { x: cx, y: pedalY, w: L.brakeW, h: L.pedalH },
+    });
+    bindHold(brake, { control: 'brake' });
+
+    // 三个圆钮：氮气（大，带冷色环）、手刹、Speedbreaker
+    const orbY = cy + L.actionH - L.orbTop - L.orbD;
+    const nitroBox = {
+      x: cx + L.actionW - L.nitroD, y: cy + L.actionH - L.orbTop - L.nitroD, w: L.nitroD, h: L.nitroD,
+    };
+    // 环画在按钮外面（对应 overlay 里半径 + .55 的环）
+    const soft = el('div', 'ring-nitro-soft', deck);
+    at(soft, { x: nitroBox.x - .85, y: nitroBox.y - .85, w: L.nitroD + 1.7, h: L.nitroD + 1.7 });
+    const ring = el('div', 'ring-nitro', deck);
+    at(ring, { x: nitroBox.x - .55, y: nitroBox.y - .55, w: L.nitroD + 1.1, h: L.nitroD + 1.1 });
+
+    const nitro = control({
+      cls: 'orb', shape: 'round', held: .95, key: 'B', icoId: 'nitro', keyColour: 'var(--key-b)',
+      keySize: 1.0, icoSize: 3.1, gap: .2, label: 'Nitro', box: nitroBox,
+    });
+    bindHold(nitro, { control: 'nitro' });
+
+    const handbrake = control({
+      cls: 'orb', shape: 'round', held: .95, key: 'A', icoId: 'handbrake', keyColour: 'var(--key-a)',
+      keySize: 1.0, icoSize: 2.5, gap: .2, label: 'Handbrake',
+      box: { x: cx, y: orbY, w: L.orbD, h: L.orbD },
+    });
+    bindHold(handbrake, { control: 'handbrake' });
+
+    const breaker = control({
+      cls: 'orb', shape: 'round', held: .95, key: 'X', icoId: 'bullet', keyColour: 'var(--key-x)',
+      keySize: 1.0, icoSize: 2.5, gap: .2, label: 'Speedbreaker',
+      box: { x: cx + L.sbLeft, y: orbY, w: L.orbD, h: L.orbD },
+    });
+    bindHold(breaker, { control: 'speedbreaker' });
+  }
+
+  // ---- 左下：转向盘 ---------------------------------------------------------
+  let steer = { value: 0, held: false, originX: 0, homeLeft: 0, homeTop: 0, panelW: 0, panelH: 0 };
+  function steering() {
+    const home = { x: L.margin, y: H - L.margin - L.steerH };
+    const panel = el('div', 'ctrl steer', deck);
+    panel.style.borderRadius = cq(1.8);
+    at(panel, { x: home.x, y: home.y, w: L.steerW, h: L.steerH });
+    panel.setAttribute('role', 'group');
+    panel.setAttribute('aria-label', 'Steering (LS) — 按住并拖动');
+
+    steer.panelW = L.steerW; steer.panelH = L.steerH;
+    steer.homeLeft = home.x; steer.homeTop = home.y;
+
+    // 读数：面板头行左侧（对应 overlay 的 ta.x / a.y + .9）
+    const readout = el('div', 'steer-readout', panel);
+    readout.style.left = cq(L.steerPadX);
+    readout.style.top = cq(.9);
+    readout.style.fontSize = cq(1.18);
+    readout.textContent = '0°';
+    steer.readout = readout;
+
+    // 轨道
+    const trackW = L.steerW - 2 * L.steerPadX;
+    const track = el('div', 'steer-track', panel);
+    at(track, { x: L.steerPadX, y: L.steerTrackTop, w: trackW, h: L.trackH });
+    const centre = el('div', 'steer-centre', track);
+    centre.style.left = '50%';
+    const fill = el('div', 'steer-fill', track);
+    fill.style.left = '50%'; fill.style.width = '0px';
+
+    // 端部箭头
+    [['left', L.steerPadX + 1.2 + .65, 'left'], ['right', L.steerW - L.steerPadX - 1.2 - .65, 'right']]
+      .forEach(([dir, x]) => {
+        const a = el('div', 'steer-chev', panel);
+        a.style.width = cq(1.3); a.style.height = cq(1.3);
+        a.style.left = cq(x - .65); a.style.top = cq(L.steerTrackTop + L.trackH / 2 - .65);
+        a.innerHTML = ico(dir);
+      });
+
+    // 旋钮：LS + 方向盘图标
+    const knob = el('div', 'steer-knob', panel);
+    const knobX0 = L.steerPadX + (trackW - L.knobD) / 2;
+    const knobY0 = L.steerTrackTop + (L.trackH - L.knobD) / 2;
+    at(knob, { x: knobX0, y: knobY0, w: L.knobD, h: L.knobD });
+    const face = el('div', 'face', knob);
+    face.style.setProperty('--gap', .08);
+    const k = el('span', 'key', face);
+    k.textContent = 'LS'; k.style.fontSize = cq(.9);
+    const i = el('span', 'ico', face);
+    i.style.width = cq(1.75); i.style.height = cq(1.75);
+    i.innerHTML = ico('steer');
+    steer.knob = knob; steer.knobX0 = knobX0; steer.trackW = trackW; steer.fill = fill; steer.face = face;
+
+    // 拖拽：面板中心跟到拇指（真机是即时吸附，这里保持一致）
+    let drag = null;
+    panel.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
+      const rect = stage.getBoundingClientRect();
+      const cqw = rect.width / 100;
+      const px = (e.clientX - rect.left) / cqw;
+      const py = (e.clientY - rect.top) / cqw;
+      // 夹在画布边距内（对应 Layout 的 keep()）
+      const cx = Math.min(Math.max(px, L.margin + L.steerW / 2), 100 - L.margin - L.steerW / 2);
+      const cyy = Math.min(Math.max(py, L.margin + L.steerH / 2), H - L.margin - L.steerH / 2);
+      panel.style.left = cq(cx - L.steerW / 2);
+      panel.style.top = cq(cyy - L.steerH / 2);
+      panel.classList.add('is-held');
+      steer.held = true;
+      drag = { id: e.pointerId, x: px };
+      panel.setPointerCapture(e.pointerId);
+      applySteer(0);
+      emit('steer held');
+      e.preventDefault();
+    });
+    panel.addEventListener('pointermove', (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const rect = stage.getBoundingClientRect();
+      const cqw = rect.width / 100;
+      const px = (e.clientX - rect.left) / cqw;
+      const span = L.travel * L.trackW;
+      applySteer(Math.max(-1, Math.min(1, (px - drag.x) / span)));
+    });
+    const release = (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      drag = null;
+      panel.classList.remove('is-held');
+      steer.held = false;
+      panel.style.left = cq(steer.homeLeft);
+      panel.style.top = cq(steer.homeTop);
+      applySteer(0);
+      emit('steer released');
+    };
+    panel.addEventListener('pointerup', release);
+    panel.addEventListener('pointercancel', release);
+
+    // 键盘：左右微调，Esc 回中（可访问性）
+    panel.tabIndex = 0;
+    panel.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        const step = e.key === 'ArrowLeft' ? -.12 : .12;
+        applySteer(Math.max(-1, Math.min(1, steer.value + step)));
+        if (!steer.held) {
+          panel.classList.add('is-held');
+          steer.held = true;
+          emit('steer held');
+        }
+        e.preventDefault();
+      } else if (e.key === 'Escape' && steer.held) {
+        release({ pointerId: drag ? drag.id : -1 });
+      }
+    });
+    panel.addEventListener('blur', () => { if (steer.held) release({ pointerId: drag ? drag.id : -1 }); });
+  }
+
+  function applySteer(v) {
+    steer.value = v;
+    const knobTravel = L.travel * steer.trackW;         // 每侧的行程（cqw）
+    const x = steer.knobX0 + v * knobTravel;
+    steer.knob.style.left = cq(x);
+    // 填充条：从中心线到旋钮中心
+    const centreX = L.steerPadX + steer.trackW / 2;
+    const w = Math.abs(v) * knobTravel;
+    steer.fill.style.left = cq(v >= 0 ? centreX : centreX - w);
+    steer.fill.style.width = cq(w);
+    const deg = Math.round(v * 90);
+    steer.readout.textContent = (deg > 0 ? '+' : '') + deg + '°';
+    // 按住时旋钮与图标一起亮
+    const c = steer.held ? 'var(--orange)' : 'var(--chalk)';
+    steer.face.querySelector('.ico').style.color = c;
+    sample.querySelector('[data-f="steer"]').textContent = (deg > 0 ? '+' : '') + deg + '°';
+    sample.querySelector('[data-f="steer"]').classList.toggle('on', Math.abs(deg) > 2);
+  }
+
+  // ---- 按住状态 -------------------------------------------------------------
+  const held = new Set();
+  function bindHold(node, { control: name, plated }) {
+    node.dataset.control = name;
+    node._plate = plated || null;
+    node.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
+      node.setPointerCapture(e.pointerId);
+      press(name, node, true);
+      e.preventDefault();
+    });
+    const up = () => press(name, node, false);
+    node.addEventListener('pointerup', up);
+    node.addEventListener('pointercancel', up);
+    node.addEventListener('pointerleave', (e) => { if (e.buttons === 0) up(); });
+    node.addEventListener('keydown', (e) => {
+      if (e.key === ' ' || e.key === 'Enter') { press(name, node, true); e.preventDefault(); }
+    });
+    node.addEventListener('keyup', (e) => {
+      if (e.key === ' ' || e.key === 'Enter') { press(name, node, false); e.preventDefault(); }
+    });
+  }
+
+  // 底板只在"有键按着"时换边色：D-pad 与换挡共用这条规则
+  function refreshPlates() {
+    const hot = new Map();
+    for (const node of document.querySelectorAll('.hit')) {
+      const plate = node._plate;
+      if (!plate) continue;
+      hot.set(plate, (hot.get(plate) || false) || node.classList.contains('is-held'));
+    }
+    for (const [plate, on] of hot) plate.classList.toggle('is-hot', on);
+  }
+
+  function press(name, node, down) {
+    node.classList.toggle('is-held', down);
+    down ? held.add(name) : held.delete(name);
+    // 图标跟着亮成橙色（overlay 里是 Mix(chalk, orange, press)）
+    const icon = node.querySelector('.face .ico');
+    if (icon) icon.style.setProperty('--ico-colour', down ? 'var(--orange)' : '');
+    if (!down && node.dataset.control === 'throttle') icon.style.setProperty('--ico-colour', 'var(--orange)');
+    refreshPlates();
+    emit(down ? `${name} down` : `${name} up`);
+  }
+
+  // ---- 状态读出（文档批注，不是设计的一部分） ------------------------------
+  function emit(what) {
+    const rt = held.has('throttle') ? '1.00' : '0.00';
+    const lt = held.has('brake') ? '1.00' : '0.00';
+    sample.querySelector('[data-f="rt"]').textContent = rt;
+    sample.querySelector('[data-f="lt"]').textContent = lt;
+    sample.querySelector('[data-f="rt"]').classList.toggle('on', held.has('throttle'));
+    sample.querySelector('[data-f="lt"]').classList.toggle('on', held.has('brake'));
+    const names = { handbrake: 'A', nitro: 'B', speedbreaker: 'X', rearView: 'Y',
+                    quickRearView: 'LB', camera: 'RB', start: 'START', back: 'BACK',
+                    shiftUp: 'RS↑', shiftDown: 'RS↓', dpadUp: '↑', dpadDown: '↓', dpadLeft: '←', dpadRight: '→' };
+    const bits = [...held].filter((n) => names[n]).map((n) => names[n]);
+    sample.querySelector('[data-f="btn"]').textContent = bits.length ? bits.join(' ') : '——';
+    sample.querySelector('[data-f="btn"]').classList.toggle('on', bits.length > 0);
+  }
+
+  // ---- 材质开关 -------------------------------------------------------------
+  const bV1 = document.getElementById('btn-v1');
+  const bV2 = document.getElementById('btn-v2');
+  function setMaterial(v) {
+    document.documentElement.dataset.material = v;
+    bV1.setAttribute('aria-pressed', String(v === 'v1'));
+    bV2.setAttribute('aria-pressed', String(v === 'v2'));
+  }
+  bV1.addEventListener('click', () => setMaterial('v1'));
+  bV2.addEventListener('click', () => setMaterial('v2'));
+
+  const bGrab = document.getElementById('btn-grab');
+  bGrab.addEventListener('click', () => {
+    const on = bGrab.getAttribute('aria-pressed') !== 'true';
+    bGrab.setAttribute('aria-pressed', String(on));
+    deck.classList.toggle('show-grab', on);
+  });
+
+  // 背景：黄昏是默认的考场，夜景是原来的样子
+  const bDusk = document.getElementById('btn-dusk');
+  const bNight = document.getElementById('btn-night');
+  function setScene(v) {
+    stage.dataset.scene = v;
+    bDusk.setAttribute('aria-pressed', String(v === 'dusk'));
+    bNight.setAttribute('aria-pressed', String(v === 'night'));
+  }
+  bDusk.addEventListener('click', () => setScene('dusk'));
+  bNight.addEventListener('click', () => setScene('night'));
+
+  addEventListener('keydown', (e) => {
+    if (e.target.matches('input, textarea')) return;
+    if (e.key === '1') setMaterial('v1');
+    if (e.key === '2') setMaterial('v2');
+  });
+
+  // ---- 尺寸：1cqw = 舞台宽度的 1% ------------------------------------------
+  const setCqw = () => {
+    const w = stage.clientWidth;
+    if (w > 0) stage.style.setProperty('--cqw', (w / 100) + 'px');
+  };
+  new ResizeObserver(setCqw).observe(stage);
+
+  // ---- 生成 ---------------------------------------------------------------
+  dpad();
+  sysButtons();
+  viewButtons();
+  shifter();
+  actions();
+  steering();
+  setCqw();
+  emit('init');
+
+  // ---- 深链：file://#material=v1&grab=1&hold=throttle,brake&steer=-.55 ----
+  // 方便把某个状态直接发给别人看，也方便截图验收。
+  // （用 # 而不是 ?：file:// 的查询串会被当成文件名的一部分。）
+  const q = new URLSearchParams((location.hash || '').replace(/^#/, '') || location.search);
+  if (q.get('material') === 'v1') setMaterial('v1');
+  if (q.get('scene') === 'night') setScene('night');
+  if (q.get('grab') === '1') bGrab.click();
+  for (const name of (q.get('hold') || '').split(',').filter(Boolean)) {
+    const node = document.querySelector(`[data-control="${name}"]`);
+    if (!node) continue;
+    node.classList.add('is-held');
+    held.add(name);
+    const icon = node.querySelector('.face .ico');
+    if (icon) icon.style.setProperty('--ico-colour', 'var(--orange)');
+  }
+  refreshPlates();
+  const presetSteer = parseFloat(q.get('steer'));
+  if (!Number.isNaN(presetSteer)) {
+    const panel = document.querySelector('.steer');
+    panel.classList.add('is-held');
+    steer.held = true;
+    applySteer(Math.max(-1, Math.min(1, presetSteer)));
+  }
+  emit('preset');
+})();
+</script>
+</body>
+</html>

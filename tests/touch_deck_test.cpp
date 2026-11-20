@@ -71,13 +71,14 @@ static void Geometry()
     RectNear(d.back, 452.925f, 24.3f, 74.7f, 36.45f, "back");
     Near((d.start.CentreX() + d.back.CentreX()) * kW, kW, "the two centred on the canvas");
 
-    // Top right: three 5.45 across views, 0.55 apart; the shifter under them.
+    // Top right: three 5.45 across views, 0.55 apart; the shifter under them,
+    // 6.9 across and two 4.35 halves (no header: its name is on their line).
     RectNear(d.rearView, 719.1f, 23.85f, 49.05f, 49.05f, "rear view");
     RectNear(d.quickRearView, 773.1f, 23.85f, 49.05f, 49.05f, "quick rear view");
     RectNear(d.camera, 827.1f, 23.85f, 49.05f, 49.05f, "camera");
     Near(d.camera.Right() * kW, 876.15f, "camera's right edge on the margin");
-    RectNear(d.shifter, 827.1f, 85.95f, 49.05f, 78.3f, "shifter");
-    Near((d.shiftUp.y - d.shifter.y) * kH, 1.8f * 9.0f, "the shifter's header is 1.8 cqw");
+    RectNear(d.shifter, 814.05f, 85.95f, 62.1f, 78.3f, "shifter");
+    Near(d.shiftUp.y, d.shifter.y, "the up half starts the shifter");
     Near(d.shiftDown.Bottom(), d.shifter.Bottom(), "the down half ends the shifter");
 
     // Every control has a size, and none overlaps another (a press is decided
@@ -187,9 +188,9 @@ static void HitTesting()
     CHECK(HitTest(d, u, v) == Control::Nitro, "the nitro orb's middle");
     Inside(d.shiftDown, 0.5f, 0.5f, u, v);
     CHECK(HitTest(d, u, v) == Control::ShiftDown, "the shifter's lower half");
-    // The shifter's header is not a control: only its two halves shift.
+    // The halves split the whole shifter: its top row is the up half.
     Inside(d.shifter, 0.5f, 0.04f, u, v);
-    CHECK(HitTest(d, u, v) == Control::Count, "the shifter's header does nothing");
+    CHECK(HitTest(d, u, v) == Control::ShiftUp, "the shifter's top is its up half");
     // Between the pedals, in the 1.05 cqw gap the brake's width leaves.
     u = (d.brake.Right() + d.throttle.x) * 0.5f;
     v = d.throttle.CentreY();
