@@ -690,6 +690,8 @@ static void TestParse()
     CHECK(gpu::ShadowScale(6) == RenderScale::Whole(2, 2), "shadow setting caps at 2x");
     CHECK(gpu::ShadowPoolMegabytes(RenderScale{ kHalf, kHalf }) == 256, "1.5x shadow pool");
     CHECK(gpu::ShadowPoolMegabytes(RenderScale::Whole(2, 2)) == 384, "2x shadow pool");
+    CHECK(gpu::ShadowPoolMegabytes(RenderScale{ { 9, 4 }, { 1, 1 } }) == 288, "9/4 x 1 shadow pool (Shadow Resolution's Auto)");
+    CHECK(gpu::ShadowPoolMegabytes(RenderScale::Whole(2, 1)) == 0 && gpu::ShadowPoolMegabytes(RenderScale::Whole(1, 1)) == 0, "no row: the general pool's size");
     RenderScale half{ kHalf, kHalf };
     CHECK(half.x.Size(1280) == 1920 && half.y.Size(720) == 1080 && half.SlotWords() == 2304 && half.PixelsNum() == 9 && half.PixelsDen() == 4,
         "1.5x: %ux%u, %u words a page", half.x.Size(1280), half.y.Size(720), half.SlotWords());
@@ -795,6 +797,23 @@ static void TestPoolSize()
     }
 }
 
+static void TestHostScale()
+{
+    printf("scaled resolves: which scales store into cached scaled textures\n");
+    const RenderScale deck{ { 1, 1 }, { 10, 9 } };
+    CHECK(gpu::HostScaledResolves(deck, false), "Steam Deck 1x10/9: hosted");
+    CHECK(gpu::HostScaledResolves(RenderScale{ { 10, 9 }, { 1, 1 } }, false), "10/9 x1: hosted");
+    // A Steam Machine's 3x for a 3440x1440 picture (the picture's own columns), and the other scales above 5/4:
+    // hosted on Apple GPUs only (a Mac's 2x2 for a 4K picture).
+    for (const RenderScale& r : { RenderScale{ { 129, 32 }, { 3, 1 } }, RenderScale::Whole(3, 3), RenderScale::Whole(2, 2),
+             RenderScale{ kHalf, kHalf }, RenderScale{ { 1, 1 }, kHalf }, RenderScale{ { 2, 1 }, { 20, 9 } } })
+    {
+        CHECK(!gpu::HostScaledResolves(r, false), "%s: not hosted", gpu::ScaleName(r).c_str());
+        CHECK(gpu::HostScaledResolves(r, true), "%s on an Apple GPU: hosted", gpu::ScaleName(r).c_str());
+    }
+    CHECK(gpu::HostScaledResolves(deck, true), "1x10/9 on an Apple GPU: hosted");
+}
+
 static void TestShaders(const char* rendererPath)
 {
     printf("renderer.cpp's shaders splice GLSL_SCALE_CODE\n");
@@ -848,6 +867,7 @@ int main(int argc, char** argv)
     TestTexelRoundTrip();
     TestHostedTexture();
     TestPoolSize();
+    TestHostScale();
     TestParse();
     if (argc > 1)
         TestShaders(argv[1]);

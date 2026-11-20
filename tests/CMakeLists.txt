@@ -35,6 +35,16 @@ sb_test(block_ranges_test)
 sb_test(memory_plan_test)
 # A discrete GPU's PCIe link for the logs (gpu/pcie_link.h, header only; issue #40).
 sb_test(pcie_link_test)
+# Linux's /proc/<pid>/task/<tid>/stat as the [cpu] line reads it (report/proc_stat.h,
+# header only; NFSMW_CPU_LOG on SteamOS, item #71): sample texts, and on Linux this
+# test's own thread.
+sb_test(proc_stat_test)
+# Which of item #71's waiting changes a run starts with (cpu/efficiency_choice.h,
+# header only): Apple all four, a Steam Deck cpspin + lateguard, the Steam Machine
+# cpspin + sleep0 + lateguard, the Steam Frame and other Linux none, NFSMW_EFFICIENCY
+# over all; efficiency.cpp is read to check it uses the rule with video/steam_device.h's
+# Deck and Steam Machine.
+sb_test(efficiency_choice_test ARGS ${RT}/cpu/efficiency.cpp)
 # Deferred shadow resolves (gpu/shadow_lend.h, header only): their decisions,
 # and a model of the renderer's against resolving every time.
 sb_test(shadow_lend_test)
@@ -54,6 +64,16 @@ sb_test(render_scale_test ARGS ${RT}/gpu/renderer.cpp)
 # only): each cut to its own rows at 1x, 1.5x, 2x, 3x and Vert+'s taller y
 # scales, meeting exactly; renderer.cpp is read to check it applies the rules.
 sb_test(split_views_test ARGS ${RT}/gpu/renderer.cpp)
+# The car's environment cube with the samples the game asks for
+# (gpu/cube_aa.h, header only; NFSMW_CUBE_AA, issue #89's rear-view mirror):
+# its target's size, the occlusion weight, the pixels each mode shades;
+# renderer.cpp is read to check it applies the rules.
+sb_test(cube_aa_test ARGS ${RT}/gpu/renderer.cpp)
+# GPU markers (gpu/gpu_markers.h, header only; NFSMW_GPU_MARKERS, GitHub #57,
+# #99, #101): step numbers, the GPU's words, the checkpoints and the report
+# naming where the GPU stopped; renderer.cpp is read to check it marks every
+# step it records and reports a lost device instead of waiting on it.
+sb_test(gpu_markers_test ARGS ${RT}/gpu/renderer.cpp)
 # Which controller is which player in split screen (hid/player_slots.h,
 # header only) and the game's split-screen test (game/split_screen.h);
 # input.cpp is read to check users 1-3 follow it.
@@ -63,8 +83,10 @@ sb_test(player_slots_test ARGS ${RT}/hid/input.cpp)
 sb_test(last_pad_test ARGS ${RT}/hid/input.cpp)
 # The police vid-cam's side bars, the intro's black frames, the results
 # screen's backdrop and what fills the screen round them (gpu/edge_bars.h,
-# header only).
-sb_test(edge_bars_test)
+# header only), and the menu graffiti's raise at every screen shape (GitHub
+# #87; v0.2.6: 16:9 and Hor+ too); renderer.cpp is read to check it applies
+# the raise on both paths.
+sb_test(edge_bars_test ARGS ${RT}/gpu/renderer.cpp)
 # GitHub #19's menu borders (gpu/edge_bars.h, header only): the Showcase's
 # vignette stretched to the screen's edges, the Blacklist bio's black panel
 # filled all round, at every screen shape; renderer.cpp is read to check it
@@ -79,6 +101,11 @@ sb_test(fade_layers_test ARGS ${RT}/gpu/renderer.cpp)
 # pictures that leave a dark box, or a full-screen layer, short of the
 # picture's edges.
 sb_test(covers_test)
+# Saves brought in from outside (GitHub #83, #105; kernel/save_import.h,
+# header only): the game's save file checked as the game checks it, an Xbox
+# 360 package's file taken out, and the save folder: nothing that is there
+# is ever overwritten or deleted (a scratch folder in the build tree).
+sb_test(save_import_test ARGS ${CMAKE_CURRENT_BINARY_DIR}/save_import_scratch)
 # A saved pipeline cache from another GPU, driver or OS version, and the log
 # line that says so (gpu/pipeline_cache_header.h, header only).
 sb_test(pipeline_cache_header_test)
@@ -129,10 +156,33 @@ endif()
 # sharp_ui_glsl for the check after it.
 sb_test(sharp_ui_test SOURCES ${RT}/video/fsr1.cpp ARGS ${RT} ${CMAKE_CURRENT_BINARY_DIR}/sharp_ui_glsl)
 target_include_directories(sharp_ui_test PRIVATE ${CMAKE_BINARY_DIR}/runtime/generated)
+# Sun shadow PCF (gpu/shader_translator.h, Shadow Edges: Smooth, GitHub #90): the
+# block maths' CPU model; with the game's dumped shaders in game/shaders (not
+# in git: skipped without them), exactly the 13 sun-shadow receivers rewritten,
+# every other shader's GLSL unchanged, mutations of a receiver left alone. It
+# writes the rewritten receivers' GLSL (plain, without the early out, and
+# NFSMW_SHADOW_AB's gated form) to shadow_pcf_glsl for the checks after it.
+sb_test(shadow_pcf_test SOURCES ${RT}/gpu/shader_translator.cpp ${RT}/gpu/xenos/ucode.cpp
+    ARGS ${ROOT}/game/shaders ${CMAKE_CURRENT_BINARY_DIR}/shadow_pcf_glsl)
+set_tests_properties(shadow_pcf_test PROPERTIES SKIP_RETURN_CODE 77)
+if(SB_GLSLANG_VALIDATOR AND EXISTS ${ROOT}/game/shaders/ps_793a572b6da508d4.bin)
+    foreach(hash 42220e24e11f5220 44c366e23ae5d695 48553c3b04eb9b2f 672e3ab309ec00b0 6c105e8dfb4c5220 781d5cda69b100b2
+            793a572b6da508d4 90a9b04dbce54afb 9a81af49c72455cc a0910baf65176645 d3f6eaa9311f5220 e53b1f5c8a7bdaa0 eb525efa9f5f9bd9)
+        foreach(form "" _full _ab)
+            add_test(NAME shadow_pcf_glsl_check_${hash}${form} COMMAND ${SB_GLSLANG_VALIDATOR} -V --target-env vulkan1.1
+                ${CMAKE_CURRENT_BINARY_DIR}/shadow_pcf_glsl/ps_${hash}${form}.frag -o ${CMAKE_CURRENT_BINARY_DIR}/shadow_pcf_glsl/ps_${hash}${form}.spv)
+            set_tests_properties(shadow_pcf_glsl_check_${hash}${form} PROPERTIES DEPENDS shadow_pcf_test)
+        endforeach()
+    endforeach()
+endif()
 # Anisotropic Filtering's Auto: 16x on a Mac at 1x at every screen shape (gpu/anisotropy_auto.h), as GetSampler applies it.
 sb_test(anisotropy_auto_test SOURCES ${RT}/video/picture_fit.cpp ARGS ${RT}/gpu/renderer.cpp)
-# Shadow Resolution's Auto: 2x while the scene renders at 2x or more (gpu/shadow_auto.h), as the renderer applies it (GitHub #90).
+# Shadow Resolution's Auto: while the scene renders at 2x or more, the wider map (9/4 x 1) on Apple GPUs and 2x elsewhere (gpu/shadow_auto.h), as the renderer applies it (GitHub #90).
 sb_test(shadow_auto_test SOURCES ${RT}/video/picture_fit.cpp ${RT}/video/scale_budget.cpp ARGS ${RT}/gpu/renderer.cpp ${RT}/user/settings.cpp)
+# The sun shadow map's diagnostics (gpu/shadow_ab.h, header only): a scale per
+# axis (NFSMW_SHADOW_SCALE) and NFSMW_SHADOW_AB's plan.
+sb_test(shadow_ab_test ARGS ${RT}/gpu/renderer.cpp ${RT}/game/ultrawide.cpp)
+sb_test(ui_mask_use_test ARGS ${RT}/gpu/renderer.cpp ${RT}/video/presenter.cpp)
 if(SB_GLSLANG_VALIDATOR)
     foreach(shader sharp_premultiplied.frag sharp_straight.frag ui_easu.frag)
         add_test(NAME sharp_ui_glsl_check_${shader} COMMAND ${SB_GLSLANG_VALIDATOR} -V --target-env vulkan1.1
@@ -200,6 +250,11 @@ sb_test(present_schedule_test)
 # doesn't stop the game's sound (GitHub issue #20: the sound stopped for good,
 # then the game hung after the race), and a working one is followed as before.
 sb_test(audio_cadence_test)
+# Settings > Audio > 7.1 Speakers (apu/speaker_layout.h, header only; GitHub
+# issue #91: a 7.1 receiver left its side pair silent): off, the frame is bit
+# for bit the 5.1 it was; on, with an 8-channel device, the game's surrounds
+# on both the back and the side pair at -3 dB each.
+sb_test(speaker_layout_test)
 # EA SND's mixer never drops sounds for time on a host (apu/ea_cpu_budget.h,
 # header only; GitHub issue #35: one sound, usually the engine, much quieter
 # until the next gear change): EA's budget rule as a model, the policy, and
