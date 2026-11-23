@@ -1,20 +1,24 @@
-// Tests for hid/touch_layout.h (and hid/touch_input.h): where the touch controls sit on the game's
-// picture, which finger presses what, and what the game is told. Header only; from the repo root:
-//   clang++ -std=c++20 -O2 -Iruntime tests/touch_deck_test.cpp -o build/touch_deck_test && build/touch_deck_test
+// Tests for the touch deck's headers -- hid/touch_control.h, hid/touch_spec.h,
+// hid/touch_layout.h, hid/touch_input.h (header only) and the generated
+// hid/touch_art.h: where the controls sit on the game's picture, which fingers
+// press what, and what the game is told. From the repo root:
+//   clang++ -std=c++20 -O2 -Iruntime tests/touch_deck_test.cpp -o build/touch_deck_test \
+//       && build/touch_deck_test runtime/ui/touch_overlay.cpp
 #include <hid/touch_layout.h>
 #include <hid/touch_input.h>
 
 #include <cmath>
 #include <cstdio>
 #include <iterator>
+#include <string>
 
 static int g_failures = 0;
 #define CHECK(cond, ...) do { if (!(cond)) { g_failures++; printf("  FAIL %s:%d: %s: ", __FILE__, __LINE__, #cond); printf(__VA_ARGS__); printf("\n"); } } while (0)
 
 using namespace hid::touch;
 
-// The design's reference canvas in pixels (design/layout.json: 900 x 506.25,
-// 1 cqw = 9 px). The tests say where a control goes in pixels there.
+// The reference canvas in pixels (900 x 506.25, 1 cqw = 9 px). The tests say
+// where a control goes in pixels there.
 static constexpr float kW = 900.0f, kH = 506.25f;
 
 static void Near(float got, float want, const char* what)
@@ -39,47 +43,91 @@ static void Geometry()
 {
     const Deck d = Layout(CanvasFor(kW / kH));
 
-    // Bottom left: the steering panel and its track (the handoff's 35 x 11.1
-    // at left 2.65, bottom 2.65, narrowed to 26 across; the track 4.9 high,
-    // 1.35 in from the panel's sides, 3.55 down from its top).
-    RectNear(d.steer, 23.85f, 382.5f, 234.0f, 99.9f, "steering panel");
-    RectNear(d.steerTrack, 36.0f, 414.45f, 209.7f, 44.1f, "steering track");
-    // The knob is 5.9 across, on the track's centre line: 0.5 cqw taller than
-    // the track each way, so it overflows it.
-    RectNear(d.steerKnob, 114.3f, 409.95f, 53.1f, 53.1f, "steering knob");
-    Near(d.steerKnob.CentreX(), d.steerTrack.CentreX(), "knob centred on the track");
+    // Bottom left: the analog stick, an 18 cqw base 2.65 in from the left and
+    // the bottom, with a 7.4 cqw stick at its centre.
+    RectNear(d.steer, 23.85f, 320.4f, 162.0f, 162.0f, "stick base");
+    RectNear(d.steerStick, 71.55f, 368.1f, 66.6f, 66.6f, "stick");
+    Near(d.steerStick.CentreX(), d.steer.CentreX(), "the stick centred in its base");
+    Near(d.steerStick.CentreY(), d.steer.CentreY(), "and level with it");
+    Near(d.steerTravel * kW, 47.7f, "the stick travels the base's half less the stick's");
 
-    // Bottom right: the action cluster (27 x 18.4 at right 2.65, bottom 2.65).
-    RectNear(d.throttle, 736.2f, 417.6f, 139.95f, 64.8f, "throttle");
-    RectNear(d.brake, 633.15f, 417.6f, 93.6f, 64.8f, "brake");
-    RectNear(d.nitro, 792.0f, 319.5f, 84.15f, 84.15f, "nitro");
-    RectNear(d.handbrake, 633.15f, 336.6f, 67.05f, 67.05f, "handbrake");
-    RectNear(d.speedbreaker, 717.3f, 336.6f, 67.05f, 67.05f, "speedbreaker");
-    Near(d.throttle.Right() * kW, 876.15f, "throttle's right edge on the margin");
-    Near(d.brake.Right() * kW, 726.75f, "brake's right edge");
-    Near((d.throttle.y - d.nitro.Bottom()) * kH, 1.55f * 9.0f, "nitro's bottom, 1.55 cqw above the pedals");
+    // Bottom right: the action cluster, in the iOS deck's arrangement. Two
+    // standing pedals on the bottom margin (the brake at it, the throttle a
+    // pedal and 0.8 cqw in from it), and the four face buttons on a fan to
+    // their left: A, X, B and Y, a step apart all the way up, each the size of
+    // the views' LB and RB. A pedal is 6.5 cqw wide and as tall as its own
+    // picture is for that width -- gas.png is 0.81, brake.png 0.98 -- so the
+    // two are neither the same height nor stretched into one another.
+    RectNear(d.brake, 817.65f, 422.479f, 58.5f, 59.921f, "brake");
+    RectNear(d.throttle, 751.95f, 410.052f, 58.5f, 72.348f, "gas");
+    Near(d.brake.Right() * kW, 876.15f, "the brake's right edge on the margin");
+    Near(d.brake.Bottom() * kH, 482.4f, "and the pedals' bottom on it");
+    Near((d.brake.x - d.throttle.Right()) * kW, 0.8f * 9.0f, "0.8 cqw between the pedals");
+    RectNear(d.handbrake, 666.97f, 433.35f, 49.05f, 49.05f, "A");
+    RectNear(d.speedbreaker, 695.72f, 363.10f, 49.05f, 49.05f, "X");
+    RectNear(d.nitro, 753.31f, 313.66f, 49.05f, 49.05f, "B");
+    RectNear(d.rearView, 827.10f, 295.88f, 49.05f, 49.05f, "Y");
+    Near(d.handbrake.w / d.camera.w, 1.0f, "a face button the size of RB");
+    Near(d.rearView.Right() * kW, d.brake.Right() * kW, "Y's and the brake's edges level");
 
-    // Top left: the D-pad's 3 x 3 grid of 4.45 cqw cells, arrows on its edges.
-    RectNear(d.dpadUp, 63.9f, 23.85f, 40.05f, 40.05f, "d-pad up");
-    RectNear(d.dpadLeft, 23.85f, 63.9f, 40.05f, 40.05f, "d-pad left");
-    RectNear(d.dpadRight, 103.95f, 63.9f, 40.05f, 40.05f, "d-pad right");
-    RectNear(d.dpadDown, 63.9f, 103.95f, 40.05f, 40.05f, "d-pad down");
+    // The fan: a quarter circle about a point on the bottom margin, the same
+    // step along it between one button and the next, A's disc resting on that
+    // margin and Y at the top of the quarter, over the brake.
+    const Rect fan[] = { d.handbrake, d.speedbreaker, d.nitro, d.rearView };
+    const float pivotX = d.rearView.CentreX(), pivotY = d.brake.Bottom();
+    Near((pivotY - d.handbrake.Bottom()) * kH, 0.0f, "A rests on the pedals' bottom");
+    Near((pivotY - d.rearView.CentreY()) * kH, 18.0f * 9.0f, "Y at the top of the quarter");
+    CHECK(pivotX > d.brake.x && pivotX < d.brake.Right(), "Y over the brake (%.3f, brake %.3f..%.3f)",
+        pivotX, d.brake.x, d.brake.Right());
+    float radius = 0.0f, step = 0.0f;
+    for (size_t i = 0; i < std::size(fan); i++)
+    {
+        const float r = std::hypot((pivotX - fan[i].CentreX()) * kW, (pivotY - fan[i].CentreY()) * kH);
+        if (i == 0)
+            radius = r;
+        else
+            Near(r, radius, "every face button a radius from the corner");
+        if (i > 0)
+        {
+            const float chord = std::hypot((fan[i].CentreX() - fan[i - 1].CentreX()) * kW,
+                (fan[i].CentreY() - fan[i - 1].CentreY()) * kH);
+            if (i == 1)
+                step = chord;
+            else
+                Near(chord, step, "and the same distance from the one before");
+        }
+    }
+    Near(radius, 18.0f * 9.0f, "the fan's radius");
+    Near(step, 2.0f * radius * std::sin(13.5488f * 3.14159265f / 180.0f), "equal steps along it");
+    CHECK((d.throttle.x - d.speedbreaker.Right()) * kW < 9.0f, "X's edge within a cqw of the throttle's");
+
+    // Top left: Start and Back on the margin, then the D-pad's 3 x 3 grid of
+    // 4.45 cqw cells under them, arrows on its edges.
+    RectNear(d.start, 53.325f, 23.85f, 49.05f, 49.05f, "start");
+    RectNear(d.back, 107.325f, 23.85f, 49.05f, 49.05f, "back");
+    Near((d.start.CentreX() + d.back.CentreX()) * 0.5f, d.steer.CentreX(), "the pair centred on the stick");
+    Near((d.back.x - d.start.Right()) * kW, 0.55f * 9.0f, "0.55 cqw between start and back");
+    RectNear(d.dpadUp, 84.825f, 77.85f, 40.05f, 40.05f, "d-pad up");
+    RectNear(d.dpadLeft, 44.775f, 117.9f, 40.05f, 40.05f, "d-pad left");
+    RectNear(d.dpadRight, 124.875f, 117.9f, 40.05f, 40.05f, "d-pad right");
+    RectNear(d.dpadDown, 84.825f, 157.95f, 40.05f, 40.05f, "d-pad down");
     Near(d.dpadUp.Right(), d.dpadRight.x, "the up cell meets the right one's column");
+    Near((d.dpadUp.y - d.back.Bottom()) * kH, 0.55f * 9.0f, "the D-pad 0.55 cqw under the two");
+    // The whole column -- the two keys as a pair, the cross, the stick -- on
+    // one line.
+    Near((d.dpadLeft.CentreX() + d.dpadRight.CentreX()) * 0.5f, d.steer.CentreX(), "the D-pad centred on the stick");
 
-    // Top middle: Start then Back, centred, 0.65 apart.
-    RectNear(d.start, 372.375f, 24.3f, 74.7f, 36.45f, "start");
-    RectNear(d.back, 452.925f, 24.3f, 74.7f, 36.45f, "back");
-    Near((d.start.CentreX() + d.back.CentreX()) * kW, kW, "the two centred on the canvas");
 
-    // Top right: three 5.45 across views, 0.55 apart; the shifter under them,
-    // 6.9 across and two 4.35 halves (no header: its name is on their line).
-    RectNear(d.rearView, 719.1f, 23.85f, 49.05f, 49.05f, "rear view");
-    RectNear(d.quickRearView, 773.1f, 23.85f, 49.05f, 49.05f, "quick rear view");
-    RectNear(d.camera, 827.1f, 23.85f, 49.05f, 49.05f, "camera");
-    Near(d.camera.Right() * kW, 876.15f, "camera's right edge on the margin");
-    RectNear(d.shifter, 814.05f, 85.95f, 62.1f, 78.3f, "shifter");
-    Near(d.shiftUp.y, d.shifter.y, "the up half starts the shifter");
-    Near(d.shiftDown.Bottom(), d.shifter.Bottom(), "the down half ends the shifter");
+    // Top right: quick rear view and camera, 5.45 across and 0.55 apart, the
+    // last on the margin. (Rear view is the cluster's Y now.)
+    RectNear(d.quickRearView, 743.625f, 23.85f, 49.05f, 49.05f, "quick rear view");
+    RectNear(d.camera, 797.625f, 23.85f, 49.05f, 49.05f, "camera");
+    Near((1.0f - d.camera.Right()) * kW, d.start.x * kW, "mirrored: the same distance in from its edge");
+    RectNear(d.shiftUp, 770.625f, 85.95f, 49.05f, 49.05f, "gear up");
+    RectNear(d.shiftDown, 770.625f, 138.6f, 49.05f, 49.05f, "gear down");
+    Near((d.shiftUp.CentreX() - d.quickRearView.CentreX()) * kW, (d.camera.CentreX() - d.shiftUp.CentreX()) * kW,
+        "the shifter centred between the two views");
+    Near((d.shiftDown.y - d.shiftUp.Bottom()) * kH, 0.4f * 9.0f, "the shifter's gap");
 
     // Every control has a size, and none overlaps another (a press is decided
     // by HitTest's first match, so an overlap would hide one).
@@ -96,45 +144,23 @@ static void Geometry()
     }
 }
 
-static void Centring()
-{
-    // The steering panel's centre goes where a thumb took it; every other
-    // control keeps the design's place.
-    const Canvas c = CanvasFor(kW / kH);
-    const Point place{ 0.30f, 0.70f };
-    const Deck moved = Layout(c, place);
-    Near(moved.steer.CentreX(), place.u, "the panel's centre is the thumb's, across");
-    Near(moved.steer.CentreY(), place.v, "and down");
-    Near(moved.steerTrack.CentreX(), place.u, "the track is centred on it");
-    RectNear(moved.throttle, 736.2f, 417.6f, 139.95f, 64.8f, "the pedals stay put");
-    RectNear(moved.dpadUp, 63.9f, 23.85f, 40.05f, 40.05f, "the D-pad stays put");
-
-    // Nearer an edge than the panel is wide, it stops inside the margin.
-    const Deck corner = Layout(c, { 0.0f, 0.0f });
-    Near(corner.steer.x, c.left * c.uPerCqw, "the panel stops at the left margin");
-    Near(corner.steer.y, c.top * c.vPerCqw, "and at the top's");
-    const Deck far = Layout(c, { 1.0f, 1.0f });
-    Near(1.0f - far.steer.Right(), c.right * c.uPerCqw, "and at the right's");
-    Near(1.0f - far.steer.Bottom(), c.bottom * c.vPerCqw, "and the bottom's");
-}
-
 static void OtherShapes()
 {
-    // The design's cqw sizes hold on any picture shape: wider than 16:9 (an
-    // iPhone filled by Hor+) the canvas is shorter in cqw, narrower (a 4:3
-    // iPad) taller, and a control keeps its size in cqw either way.
+    // The sizes hold on any picture shape: wider than 16:9 (an iPhone filled by
+    // Hor+) the canvas is shorter in cqw, narrower (a 4:3 iPad) taller, and a
+    // control keeps its size in cqw either way.
     for (float aspect : { 16.0f / 9.0f, 19.5f / 9.0f, 4.0f / 3.0f, 16.0f / 10.0f })
     {
         const Canvas c = CanvasFor(aspect);
         const Deck d = Layout(c);
         const float w = 900.0f, h = w / aspect;  // pixels: a round control must be round here
-        Near(d.steer.w, 0.26f, "steering panel 26 cqw across");
-        Near(d.steer.h, 11.1f * c.vPerCqw, "steering panel 11.1 cqw down");
-        Near(d.throttle.w + d.brake.w, 25.95f * c.uPerCqw, "the pedals' 25.95 cqw");
-        Near(1.0f - d.steer.Bottom(), 2.65f * c.vPerCqw, "the panel 2.65 cqw above the bottom");
-        Near(1.0f - d.camera.Right(), 2.65f * c.uPerCqw, "the views 2.65 cqw in from the right");
-        // A round control stays round on the screen: the same cqw both ways.
-        Near(d.nitro.w * w / (d.nitro.h * h), 1.0f, "nitro is round on the screen");
+        Near(d.steer.w, 0.18f, "the stick's base 18 cqw across");
+        Near(d.steer.h, 18.0f * c.vPerCqw, "and 18 cqw down");
+        Near(d.steerStick.w, 0.074f, "the stick 7.4 cqw across");
+        Near(1.0f - d.steer.Bottom(), 2.65f * c.vPerCqw, "the base 2.65 cqw above the bottom");
+        Near(1.0f - d.camera.Right(), d.start.x, "the views as far in from the right as Start is from the left");
+        Near(d.steer.w * w / (d.steer.h * h), 1.0f, "the base is round on the screen");
+        Near(d.nitro.w * w / (d.nitro.h * h), 1.0f, "so is the nitrous button");
         Near(d.dpadUp.w / d.camera.w, 4.45f / 5.45f, "a d-pad cell against a view button");
         for (size_t i = 0; i < kControls; i++)
         {
@@ -148,8 +174,7 @@ static void SafeArea()
 {
     // The design's 2.65 cqw margin, or the safe area where it reaches further
     // in: an iPhone in landscape keeps ~59 points clear at each side and 21 at
-    // the bottom, which of a 600-point picture is 9.8 and 3.5 cqw, so both
-    // must win.
+    // the bottom, which of a 600-point picture is 9.8 and 3.5 cqw.
     const Canvas c = CanvasFor(19.5f / 9.0f);
     Canvas same = InsetsFor(c, 600.0f, 9.0f, 0.0f, 9.0f, 12.0f);
     Near(same.left, 2.65f, "a small safe area leaves the design's margin");
@@ -161,11 +186,236 @@ static void SafeArea()
     Near(notched.top, 2.65f, "the top keeps the design's");
     CHECK(notched.bottom > 2.65f, "the home indicator pushes the bottom in");
 
-    // The deck follows: the steering panel starts at the new margin and stays
-    // clear of the bottom's.
+    // The deck follows: the base starts at the new margin and stays clear of
+    // the bottom's.
     const Deck d = Layout(notched);
-    Near(d.steer.x, notched.left * notched.uPerCqw, "the panel at the new left margin");
+    Near(d.steer.x, notched.left * notched.uPerCqw, "the base at the new left margin");
     Near(1.0f - d.steer.Bottom(), notched.bottom * notched.vPerCqw, "and clear of the bottom's");
+}
+
+static void Pedals()
+{
+    // Neither pedal is stretched into the other's box: each is 6.5 cqw across
+    // and as tall as its own picture is for that width, standing on the bottom
+    // margin -- gas.png is 0.81 wide for its height, brake.png 0.98.
+    const Deck d = Layout(CanvasFor(kW / kH));
+    const float gas = art::kArt[size_t(SpecOf(Control::Throttle).art)].aspect;
+    const float brake = art::kArt[size_t(SpecOf(Control::Brake).art)].aspect;
+    Near(d.throttle.h * kH / (d.throttle.w * kW), 1.0f / gas, "the gas pedal keeps its picture's shape");
+    Near(d.brake.h * kH / (d.brake.w * kW), 1.0f / brake, "so does the brake");
+    Near(d.throttle.Bottom(), d.brake.Bottom(), "both stand on the same margin");
+    CHECK(std::fabs(d.throttle.h - d.brake.h) > 1e-4f, "and are no longer the same height");
+    for (float aspect : { 16.0f / 9.0f, 4.0f / 3.0f, 19.5f / 9.0f })
+    {
+        const Deck a = Layout(CanvasFor(aspect));
+        Near(a.throttle.w, 0.065f, "the gas is 6.5 cqw across, whatever the picture's shape");
+        Near(a.brake.w, 0.065f, "and so is the brake");
+        Near(a.throttle.h * a.uPerCqw / (a.throttle.w * a.vPerCqw), 1.0f / gas, "and keeps its shape");
+        Near(a.brake.h * a.uPerCqw / (a.brake.w * a.vPerCqw), 1.0f / brake, "both of them");
+    }
+}
+
+static void Shape()
+{
+    // A control's touch area is its picture's outline, not its rectangle: the
+    // silhouette says the middle is on the button and the corners are not --
+    // for the round ones, and for the two pedals whose pictures are chamfered
+    // at the top alike.
+    const Deck d = Layout(CanvasFor(kW / kH));
+    for (size_t i = 0; i < kControls; i++)
+    {
+        const Control c = Control(i);
+        if (c == Control::Steer)
+            continue;  // (its area is the grab panel, not the base's disc)
+        const art::Info& info = art::kArt[size_t(SpecOf(c).art)];
+        CHECK(art::Inside(info, 0.5f, 0.5f, 0.0f), "control %zu: its middle is on the picture", i);
+        CHECK(!art::Inside(info, 0.02f, 0.02f, 0.0f), "control %zu: its top left corner is not", i);
+        CHECK(!art::Inside(info, 0.98f, 0.98f, 0.0f), "control %zu: nor its bottom right", i);
+    }
+    // The gears are rings with a cross cut out of the middle; the hole is the
+    // button, because a thumb on it means the gear.
+    CHECK(HitTest(d, d.shiftUp.CentreX(), d.shiftUp.CentreY()) == Control::ShiftUp, "the gear's cut-out presses the gear");
+    CHECK(HitTest(d, d.shiftDown.CentreX(), d.shiftDown.CentreY()) == Control::ShiftDown, "and the other's");
+    // The D-pad's cells touch their neighbours, so they are not grown at all: a
+    // corner there presses nothing.
+    const float px = 1.0f / kW, py = 1.0f / kH;
+    CHECK(HitTest(d, d.dpadUp.x + px, d.dpadUp.y + py) == Control::Count, "a D-pad cell's corner presses nothing");
+}
+
+static void Pads()
+{
+    // A control's touch area grows by at most half the gap to its nearest
+    // neighbour, so two of them can never meet -- and the D-pad's cells, which
+    // touch, do not grow at all.
+    const Deck d = Layout(CanvasFor(kW / kH));
+    for (size_t i = 0; i < kControls; i++)
+    {
+        CHECK(d.padCqw[i] >= 0.0f, "control %zu: a pad is not negative", i);
+        for (size_t j = i + 1; j < kControls; j++)
+        {
+            const Rect a = d.Of(Control(i)), b = d.Of(Control(j));
+            const float across = std::max({ 0.0f, b.x - a.Right(), a.x - b.Right() }) * 100.0f;
+            const float down = std::max({ 0.0f, b.y - a.Bottom(), a.y - b.Bottom() }) * 100.0f * kH / kW;
+            const float gap = std::hypot(across, down);
+            CHECK(d.padCqw[i] + d.padCqw[j] <= gap + 0.001f, "controls %zu and %zu: pads %.3f + %.3f <= gap %.3f", i, j,
+                d.padCqw[i], d.padCqw[j], gap);
+        }
+    }
+    CHECK(d.padCqw[size_t(Control::DpadUp)] == 0.0f, "a D-pad cell does not grow (its neighbours touch it)");
+    CHECK(d.padCqw[size_t(Control::DpadDown)] == 0.0f, "nor that one");
+    // The gap between the pedals is still nothing to press.
+    CHECK(HitTest(d, (d.brake.Right() + d.throttle.x) * 0.5f, d.throttle.CentreY()) == Control::Count,
+        "the middle of the gap between the pedals");
+}
+
+static void Specs()
+{
+    // The table is Control's order, every control has a picture, and each
+    // picture's metadata is what the packer said it would be.
+    CHECK(std::size(kSpecs) == kControls, "one spec a control: %zu", std::size(kSpecs));
+    for (size_t i = 0; i < kControls; i++)
+    {
+        const ControlSpec& spec = kSpecs[i];
+        CHECK(spec.control == Control(i), "spec %zu is control %zu", i, size_t(spec.control));
+        CHECK(size_t(spec.art) < art::kCount, "spec %zu has a picture", i);
+        CHECK((spec.key != nullptr) == (spec.keyFace != KeyFace::None), "spec %zu: a name has a colour", i);
+        CHECK(spec.drawScale > 0.5f && spec.drawScale <= 1.0f, "spec %zu: a sane draw scale", i);
+        const art::Info& info = art::kArt[size_t(spec.art)];
+        CHECK(info.u0 < info.u1 && info.v0 < info.v1, "picture %zu: its cell is not empty", i);
+        CHECK(info.aspect > 0.2f && info.aspect < 5.0f, "picture %zu: an aspect", i);
+        CHECK(info.sdfW >= 2 && info.sdfH >= 2, "picture %zu: a distance field", i);
+        CHECK(size_t(info.offset) + size_t(info.sdfW) * size_t(info.sdfH) <= std::size(art::kSdf),
+            "picture %zu: its field is inside kSdf", i);
+    }
+    // A key's capsule sits on the picture's own edge, up and to the right of
+    // its middle -- where the field says the edge is.
+    const Deck d = Layout(CanvasFor(kW / kH));
+    for (const ControlSpec& spec : kSpecs)
+    {
+        if (!spec.key)
+            continue;
+        const Rect r = spec.control == Control::Steer ? d.steer : d.Of(spec.control);
+        const art::Info& info = art::kArt[size_t(spec.art)];
+        const Point p = BadgeAnchor(r, info);
+        const float distance = art::SdfAt(info, (p.u - r.x) / r.w, (p.v - r.y) / r.h);
+        CHECK(std::fabs(distance) < 0.03f, "control %zu: the badge is on the edge (%.3f)", size_t(spec.control), distance);
+        CHECK(p.u > r.CentreX() && p.v < r.CentreY(), "control %zu: up and to the right of its middle", size_t(spec.control));
+        CHECK(p.u <= r.Right() && p.v >= r.y, "control %zu: and still over the picture", size_t(spec.control));
+    }
+}
+
+static void Styles()
+{
+    // The default Style is the deck as it was, and a scaled one is still a
+    // deck: round things round, everything on the canvas, nothing on top of
+    // anything else. (The automatic sizing that will use it does not exist yet.)
+    const Canvas c = CanvasFor(kW / kH);
+    const Deck a = Layout(c);
+    const Deck b = Layout(c, Style{});
+    for (size_t i = 0; i < kControls; i++)
+    {
+        const Rect x = a.Of(Control(i)), y = b.Of(Control(i));
+        CHECK(x.x == y.x && x.y == y.y && x.w == y.w && x.h == y.h, "control %zu: the same with the default style", i);
+    }
+    for (float scale : { 1.25f, 0.8f })
+    {
+        Style style;
+        style.scale = scale;
+        const Deck d = Layout(CanvasFor(kW / kH, style), style);
+        for (size_t i = 0; i < kControls; i++)
+        {
+            const Rect r = d.Of(Control(i));
+            CHECK(r.x >= -1e-4f && r.y >= -1e-4f && r.Right() <= 1.0f + 1e-4f && r.Bottom() <= 1.0f + 1e-4f,
+                "scale %.2f: control %zu is on the canvas", scale, i);
+            for (size_t j = i + 1; j < kControls; j++)
+            {
+                const Rect o = d.Of(Control(j));
+                const bool apart = r.Right() <= o.x + 1e-6f || o.Right() <= r.x + 1e-6f || r.Bottom() <= o.y + 1e-6f ||
+                    o.Bottom() <= r.y + 1e-6f;
+                CHECK(apart, "scale %.2f: controls %zu and %zu don't overlap", scale, i, j);
+            }
+        }
+        Near(d.steer.w * kW / (d.steer.h * kH), 1.0f, "the stick's base is still round");
+        Near(d.throttle.h * kH / (d.throttle.w * kW), 1.0f / art::kArt[size_t(art::Id::Gas)].aspect,
+            "and the pedal keeps its picture's shape");
+    }
+}
+
+static void Screens()
+{
+    // The deck is a thumb's width on every screen rather than a fixed fraction
+    // of the picture: a cqw is 12.8 points on the design's 1280x720, 8.5 on an
+    // iPhone's 852x393 (so its deck grows) and 13.7 on an iPad's 1366x1024 (so
+    // its shrinks) -- but only as far as the picture's height allows, since the
+    // shifter's column and the face buttons' fan must not meet.
+    const struct
+    {
+        float w, h;
+        const char* what;
+    } screens[] = {
+        { 1280.0f, 720.0f, "the design's 1280x720" },
+        { 1920.0f, 1080.0f, "a 1080p window" },
+        { 852.0f, 393.0f, "an iPhone's 852x393" },
+        { 667.0f, 375.0f, "a small phone's 667x375" },
+        { 1366.0f, 1024.0f, "an iPad's 1366x1024" },
+        { 2560.0f, 1440.0f, "a 5K desktop's 2560x1440 points" },
+    };
+    for (const auto& screen : screens)
+    {
+        Canvas c = CanvasFor(screen.w / screen.h);
+        c.pointsPerCqw = screen.w * 0.01f;
+        const Style style;
+        const float factor = style.Factor(c);
+        CHECK(factor >= kMinScale && factor <= MaxScale(c) + 1e-4f, "%s: a factor in bounds (%.3f)", screen.what, factor);
+
+        const Deck d = Layout(c, style);
+        for (size_t i = 0; i < kControls; i++)
+        {
+            const Rect r = d.Of(Control(i));
+            CHECK(r.x >= -1e-4f && r.y >= -1e-4f && r.Right() <= 1.0f + 1e-4f && r.Bottom() <= 1.0f + 1e-4f,
+                "%s: control %zu is on the canvas", screen.what, i);
+            for (size_t j = i + 1; j < kControls; j++)
+            {
+                const Rect o = d.Of(Control(j));
+                const bool apart = r.Right() <= o.x + 1e-6f || o.Right() <= r.x + 1e-6f || r.Bottom() <= o.y + 1e-6f ||
+                    o.Bottom() <= r.y + 1e-6f;
+                CHECK(apart, "%s: controls %zu and %zu don't overlap (factor %.3f)", screen.what, i, j, factor);
+            }
+        }
+    }
+
+    // The design's own screen is the deck as drawn: no scale at all.
+    Canvas reference = CanvasFor(1280.0f / 720.0f);
+    reference.pointsPerCqw = 12.8f;
+    Near(Style{}.Factor(reference), 1.0f, "the design's 1280x720 is the design's sizes");
+
+    // A tablet's button is the 70 points the design asks for; a phone's picture
+    // is too short for that (the fan would meet the shifter), so it stops at
+    // what the height allows -- which is still bigger than the design's.
+    Canvas ipad = CanvasFor(1366.0f / 1024.0f);
+    ipad.pointsPerCqw = 13.66f;
+    Near(5.45f * Style{}.Factor(ipad) * ipad.pointsPerCqw, 70.0f, "a 70 point button on an iPad");
+    // A key's capsule follows the button it sits on, so it never crowds a small
+    // one or floats on a big one.
+    Near(Style{}.Badge(SizeClass::Face, ipad), Style{}.badgeFace * Style{}.Factor(ipad),
+        "the badge is scaled with its control");
+
+    Canvas phone = CanvasFor(852.0f / 393.0f);
+    phone.pointsPerCqw = 8.52f;
+    const float phoneFactor = Style{}.Factor(phone);
+    Near(phoneFactor, MaxScale(phone), "a phone stops at the height's limit");
+    CHECK(5.45f * phoneFactor * phone.pointsPerCqw > 5.45f * 8.52f, "and its buttons are bigger than unstretched");
+
+    // The player's setting is on top of the screen's, and cannot push past the
+    // same limit.
+    Style big;
+    big.scale = 1.25f;
+    Near(big.Factor(phone), MaxScale(phone), "a bigger setting stops at the height's limit too");
+    Style small;
+    small.scale = 0.75f;
+    CHECK(small.Factor(phone) < phoneFactor, "a smaller setting still makes the deck smaller on a phone (%.3f)",
+        small.Factor(phone));
+    Near(small.Factor(reference), 0.75f, "and on the design's screen it is just the setting");
 }
 
 // A point inside a control, as the canvas fraction (fx, fy) of it takes.
@@ -181,26 +431,26 @@ static void HitTesting()
     float u = 0, v = 0;
 
     Inside(d.throttle, 0.5f, 0.5f, u, v);
-    CHECK(HitTest(d, u, v) == Control::Throttle, "the throttle's middle presses the throttle");
-    Inside(d.steerTrack, 0.5f, 0.5f, u, v);
-    CHECK(HitTest(d, u, v) == Control::Steer, "the track's middle steers");
+    CHECK(HitTest(d, u, v) == Control::Throttle, "the gas pedal's middle presses the throttle");
+    Inside(d.steer, 0.5f, 0.5f, u, v);
+    CHECK(HitTest(d, u, v) == Control::Steer, "the middle of the base steers");
     Inside(d.nitro, 0.5f, 0.5f, u, v);
-    CHECK(HitTest(d, u, v) == Control::Nitro, "the nitro orb's middle");
+    CHECK(HitTest(d, u, v) == Control::Nitro, "the nitrous button's middle");
     Inside(d.shiftDown, 0.5f, 0.5f, u, v);
     CHECK(HitTest(d, u, v) == Control::ShiftDown, "the shifter's lower half");
-    // The halves split the whole shifter: its top row is the up half.
-    Inside(d.shifter, 0.5f, 0.04f, u, v);
-    CHECK(HitTest(d, u, v) == Control::ShiftUp, "the shifter's top is its up half");
-    // Between the pedals, in the 1.05 cqw gap the brake's width leaves.
+    // Between the pedals, in the 9 cqw the cluster leaves between them.
     u = (d.brake.Right() + d.throttle.x) * 0.5f;
     v = d.throttle.CentreY();
     CHECK(HitTest(d, u, v) == Control::Count, "the gap between the pedals presses nothing");
     // The middle of the canvas: the game's own HUD, no control.
     CHECK(HitTest(d, 0.5f, 0.3f) == Control::Count, "the middle of the screen");
-    // The steering panel is its whole area, not just the track: a thumb on the
-    // panel's lower corner still steers.
-    Inside(d.steer, 0.02f, 0.95f, u, v);
-    CHECK(HitTest(d, u, v) == Control::Steer, "the panel's corner steers");
+    // The stick is taken from the whole left of the picture, not just where its
+    // base is drawn: a thumb below and right of it still steers.
+    Inside(d.steerGrab, 0.5f, 0.5f, u, v);
+    CHECK(HitTest(d, u, v) == Control::Steer, "the middle of the grab area steers");
+    u = d.steerGrab.x + d.steerGrab.w - 0.01f;
+    v = d.steerGrab.Bottom() - 0.01f;
+    CHECK(HitTest(d, u, v) == Control::Steer, "so does its far corner");
     // Every control is reachable at its middle.
     for (size_t i = 0; i < kControls; i++)
     {
@@ -212,96 +462,27 @@ static void HitTesting()
 static void Steering()
 {
     const Deck d = Layout(CanvasFor(kW / kH));
-    const Rect& t = d.steerTrack;
-    // A drag is read against where it started. With the panel centred there,
-    // the track's centre line is straight ahead.
-    const float origin = t.CentreX();
-    Near(SteerFromDrag(d, origin, origin), 0.0f, "the track's middle is straight");
-    // The knob's own travel is the reading's range: a thumb at a travel end is
-    // full lock, and past it stays there.
-    const float span = 0.44f * t.w;
-    Near(SteerFromDrag(d, origin - span, origin), -1.0f, "the knob's leftmost place is full left");
-    Near(SteerFromDrag(d, origin + span, origin), 1.0f, "its rightmost, full right");
-    Near(SteerFromDrag(d, origin - span * 2.0f, origin), -1.0f, "past it still full left");
-    Near(SteerFromDrag(d, origin + span * 2.0f, origin), 1.0f, "past it still full right");
-    Near(SteerFromDrag(d, origin + span * 0.5f, origin), 0.5f, "half way out is half right");
-    Near(SteerFromDrag(d, origin - span * 0.25f, origin), -0.25f, "and a quarter in is a quarter left");
+    const float centre = d.steer.CentreX();
+    // Straight ahead where the thumb landed, and full lock at the stick's
+    // travel each way.
+    Near(SteerFromDrag(d, centre, centre), 0.0f, "the middle is straight");
+    Near(SteerFromDrag(d, centre + d.steerTravel, centre), 1.0f, "a travel to the right is full right");
+    Near(SteerFromDrag(d, centre - d.steerTravel, centre), -1.0f, "a travel to the left is full left");
+    Near(SteerFromDrag(d, centre + 5.0f, centre), 1.0f, "past it stays full right");
+    Near(SteerFromDrag(d, centre - 5.0f, centre), -1.0f, "and full left");
+    Near(SteerFromDrag(d, centre + d.steerTravel * 0.5f, centre), 0.5f, "half a travel is half right");
+    // Relative to the landing, not to the base: a thumb that landed right of
+    // the centre starts straight ahead and turns from there.
+    const float landed = centre + d.steerTravel * 0.5f;
+    Near(SteerFromDrag(d, landed, landed), 0.0f, "straight ahead at a landing right of centre");
+    Near(SteerFromDrag(d, landed + d.steerTravel, landed), 1.0f, "and a travel on from it is full right");
 
-    // Wherever the thumb lands, the knob lands under it (in pixels: a
-    // thousandth of the canvas is a pixel at this size).
-    for (float k : { -1.0f, -0.6f, -0.25f, 0.0f, 0.25f, 0.6f, 1.0f })
-    {
-        const float at = origin + k * span;
-        Near((KnobRect(d, SteerFromDrag(d, at, origin)).CentreX() - at) * kW, 0.0f, "the knob under the thumb");
-    }
-
-    // The knob follows, 44% of the track's width each way at full lock, and
-    // the fill runs from the centre line to it.
-    Near(KnobRect(d, 0.0f).CentreX(), t.CentreX(), "the knob at rest is centred");
-    Near(KnobRect(d, 1.0f).CentreX(), t.CentreX() + 0.44f * t.w, "full right: 44% along the track");
-    Near(KnobRect(d, -1.0f).CentreX(), t.CentreX() - 0.44f * t.w, "full left: 44% back");
-    Near(KnobRect(d, 2.0f).CentreX(), KnobRect(d, 1.0f).CentreX(), "past full lock the knob stays put");
-    Rect f = SteerFill(d, 0.0f);
-    Near(f.w, 0.0f, "no fill at rest");
-    f = SteerFill(d, 0.5f);
-    Near(f.x, t.CentreX(), "a right lock's fill starts at the centre");
-    Near(f.w, 0.22f * t.w, "half right fills half of 44%");
-    f = SteerFill(d, -0.5f);
-    Near(f.Right(), t.CentreX(), "a left lock's fill ends at the centre");
-    Near(f.w, 0.22f * t.w, "half left fills as much");
-    Near(f.h, 0.36f * d.vPerCqw, "the fill is 0.36 cqw");
-}
-
-// The steering panel comes to the thumb that takes it, and the wheel is read
-// from there.
-static void PanelFollowsThumb()
-{
-    const Canvas c = CanvasFor(kW / kH);
-    const Deck home = Layout(c);
-    const float u = 0.30f, v = 0.70f;
-    State s;
-    Control hit = Control::Count;
-
-    CHECK(Down(s, home, 1, u, v, hit) && hit == Control::Steer, "a thumb on the panel steers");
-    // The panel comes to the thumb: its centre is where it landed, the track
-    // runs through it, and the wheel starts straight ahead under it.
-    Deck placed = DeckFor(c, s);
-    Near(placed.steer.CentreX(), u, "the panel follows the thumb across");
-    Near(placed.steer.CentreY(), v, "and down");
-    Near(placed.steerTrack.CentreX(), u, "the track's centre is the thumb's");
-    Sample f = SampleOf(s);
-    CHECK(f.steerSet && std::fabs(f.steer) < 1e-6f, "and starts straight ahead");
-    Near((KnobRect(placed, f.steer).CentreX() - u) * kW, 0.0f, "the knob under the thumb");
-
-    // The knob follows the thumb across the track's travel, still under it.
-    const float span = 0.44f * placed.steerTrack.w;
-    for (float k : { -1.0f, -0.4f, 0.4f, 1.0f })
-    {
-        Move(s, placed, 1, u + k * span, v);
-        f = SampleOf(s);
-        Near(f.steer, k, "steering follows the thumb");
-        Near((KnobRect(placed, f.steer).CentreX() - (u + k * span)) * kW, 0.0f, "the knob under it");
-    }
-
-    // Letting go centres the wheel and sends the panel back to the handoff's
-    // corner, where the next thumb expects it.
-    Up(s, 1);
-    f = SampleOf(s);
-    CHECK(!f.steerSet && f.steer == 0.0f, "letting go centres the wheel");
-    const Deck released = DeckFor(c, s);
-    Near(released.steer.CentreX(), home.steer.CentreX(), "the panel back in the corner, across");
-    Near(released.steer.CentreY(), home.steer.CentreY(), "and down");
-
-    // The next thumb takes it again, wherever it lands: nearer an edge than
-    // the panel can reach the panel stops at the margin, and the drag still
-    // starts straight ahead rather than snapping the wheel over.
-    CHECK(Down(s, released, 2, 0.01f, 0.5f, hit) && hit == Control::Steer, "a thumb at the canvas's edge steers");
-    placed = DeckFor(c, s);
-    Near(placed.steer.x, c.left * c.uPerCqw, "the panel as far left as it goes");
-    CHECK(std::fabs(SampleOf(s).steer) < 1e-6f, "straight ahead at the landing, not snapped left");
-    Move(s, placed, 2, 0.01f + span, 0.5f);
-    Near(SampleOf(s).steer, 1.0f, "and a thumb's travel right is full right");
-    Up(s, 2);
+    // The stick follows the angle, its centre travelling the base's half less
+    // its own, and the base itself does not move.
+    Near(StickRect(d, 0.0f).CentreX(), centre, "the stick at rest is centred");
+    Near(StickRect(d, 1.0f).CentreX(), centre + d.steerTravel, "full right: a travel along");
+    Near(StickRect(d, -1.0f).CentreX(), centre - d.steerTravel, "full left: a travel back");
+    Near(StickRect(d, 2.0f).CentreX(), StickRect(d, 1.0f).CentreX(), "past full lock the stick stays put");
 }
 
 // A frame, as input.cpp runs one: the events landed, then the pad is filled
@@ -322,20 +503,20 @@ static void StateMachine()
     // One finger on the throttle pulls it.
     State s;
     Inside(deck.throttle, 0.5f, 0.5f, u, v);
-    CHECK(Down(s, deck, 1, u, v, hit) && hit == Control::Throttle, "a finger on the throttle presses it");
+    CHECK(Down(s, deck, 1, u, v, hit) && hit == Control::Throttle, "a finger on the gas presses it");
     CHECK(Frame(s).rightTrigger == 1.0f, "and the game gets the trigger");
     CHECK(Frame(s).rightTrigger == 1.0f, "still, while the finger is down");
 
     // A second finger adds a second control.
     Inside(deck.nitro, 0.5f, 0.5f, u, v);
-    CHECK(Down(s, deck, 2, u, v, hit) && hit == Control::Nitro, "a second finger on the nitro orb");
+    CHECK(Down(s, deck, 2, u, v, hit) && hit == Control::Nitro, "a second finger on the nitrous");
     Sample f = Frame(s);
-    CHECK(f.buttons == hid::touch::button::B && f.rightTrigger == 1.0f, "throttle and nitro together");
+    CHECK(f.buttons == hid::touch::button::B && f.rightTrigger == 1.0f, "throttle and nitrous together");
 
     // Lifting one keeps the other.
     Up(s, 1);
     f = Frame(s);
-    CHECK(f.buttons == hid::touch::button::B, "the nitro orb alone after the throttle's finger lifts");
+    CHECK(f.buttons == hid::touch::button::B, "the nitrous alone after the gas's finger lifts");
     Up(s, 2);
     int frames = 0;
     while (Frame(s).buttons != 0 && frames < 10)
@@ -344,12 +525,10 @@ static void StateMachine()
 
     // A finger that lands on nothing never presses anything, wherever it goes.
     Reset(s);
-    Inside(deck.steerTrack, 0.5f, 0.12f, u, v);  // the panel's head: not a control
     CHECK(!Down(s, deck, 3, 0.5f, 0.3f, hit) && hit == Control::Count, "the middle of the picture presses nothing");
     Inside(deck.throttle, 0.5f, 0.5f, u, v);
     Move(s, deck, 3, u, v);
-    CHECK(Frame(s).rightTrigger == 0.0f, "and sliding onto the throttle doesn't press it");
-    // Nor does a lifted finger's slide press one.
+    CHECK(Frame(s).rightTrigger == 0.0f, "and sliding onto the gas doesn't press it");
     Up(s, 3);
     Move(s, deck, 3, u, v);
     CHECK(Frame(s).rightTrigger == 0.0f, "nor does a finger that has lifted");
@@ -359,59 +538,95 @@ static void StateMachine()
     Inside(deck.throttle, 0.5f, 0.5f, u, v);
     Down(s, deck, 4, u, v, hit);
     Move(s, deck, 4, 0.5f, 0.3f);
-    CHECK(Frame(s).rightTrigger == 1.0f, "a thumb that slid off its pedal still pulls");
+    CHECK(Frame(s).rightTrigger == 1.0f, "a thumb that slid off the gas still pulls");
     Up(s, 4);
 
-    // The throttle's thumb rolling up onto the nitrous or the Speedbreaker:
-    // both are held, and the orb lets go as the thumb comes back down.
+    // A pedal's thumb rolling onto a face button: both are held, and the
+    // button lets go as the thumb comes back down.
     Reset(s);
     Inside(deck.throttle, 0.5f, 0.5f, u, v);
     Down(s, deck, 20, u, v, hit);
-    CHECK(hit == Control::Throttle, "a thumb on the throttle");
+    CHECK(hit == Control::Throttle, "a thumb on the gas");
     Inside(deck.nitro, 0.45f, 0.55f, u, v);
     Move(s, deck, 20, u, v);
     f = Frame(s);
-    CHECK(f.buttons == hid::touch::button::B && f.rightTrigger == 1.0f, "rolled onto the nitrous: both held");
-    // Back down to the pedal: the nitrous lets go, the throttle doesn't.
+    CHECK(f.buttons == hid::touch::button::B && f.rightTrigger == 1.0f, "rolled onto B: both held");
+    // Back down to the pedal: the button lets go, the throttle doesn't.
     Inside(deck.throttle, 0.5f, 0.5f, u, v);
     Move(s, deck, 20, u, v);
     for (int i = 0; i < 1 + hid::touch::kPressUpdates; i++)
         Frame(s);
     f = Frame(s);
-    CHECK(f.buttons == 0 && f.rightTrigger == 1.0f, "back on the pedal: the nitrous let go, the throttle held");
-    // And onto the Speedbreaker.
-    Inside(deck.speedbreaker, 0.5f, 0.5f, u, v);
-    Move(s, deck, 20, u, v);
-    f = Frame(s);
-    CHECK(f.buttons == hid::touch::button::X && f.rightTrigger == 1.0f, "rolled onto the Speedbreaker");
-    // Only those two roll: the brake or the handbrake don't join in.
-    Inside(deck.brake, 0.5f, 0.5f, u, v);
-    Move(s, deck, 20, u, v);
-    for (int i = 0; i < 1 + hid::touch::kPressUpdates; i++)
-        Frame(s);
-    f = Frame(s);
-    CHECK(f.buttons == 0 && f.rightTrigger == 1.0f, "the brake pedal joins nothing");
-    Inside(deck.handbrake, 0.5f, 0.5f, u, v);
-    Move(s, deck, 20, u, v);
-    CHECK(Frame(s).buttons == 0, "nor the handbrake");
-    // Lifting ends both.
-    Inside(deck.nitro, 0.5f, 0.5f, u, v);
-    Move(s, deck, 20, u, v);
-    CHECK(Frame(s).buttons == hid::touch::button::B, "rolled onto the nitrous again");
-    Up(s, 20);
-    for (int i = 0; i < 1 + hid::touch::kPressUpdates; i++)
-        Frame(s);
-    f = Frame(s);
-    CHECK(f.buttons == 0 && f.rightTrigger == 0.0f, "the lift lets go of both");
+    CHECK(f.buttons == 0 && f.rightTrigger == 1.0f, "back on the gas: B let go, the throttle held");
 
-    // A finger that landed on an orb doesn't roll onto the next one.
+    // Any of the four, from either pedal.
+    const struct
+    {
+        Control face;
+        uint16_t bit;
+        const char* name;
+    } roll[] = {
+        { Control::Handbrake, hid::touch::button::A, "A" },
+        { Control::RearView, hid::touch::button::Y, "Y" },
+        { Control::Speedbreaker, hid::touch::button::X, "X" },
+        { Control::Nitro, hid::touch::button::B, "B" },
+    };
+    for (const bool pedal : { true, false })
+    {
+        for (const auto& r : roll)
+        {
+            Reset(s);
+            const Control from = pedal ? Control::Throttle : Control::Brake;
+            Inside(deck.Of(from), 0.5f, 0.5f, u, v);
+            CHECK(Down(s, deck, 30, u, v, hit) && hit == from, "a thumb on the %s", pedal ? "gas" : "brake");
+            Inside(deck.Of(r.face), 0.5f, 0.5f, u, v);
+            Move(s, deck, 30, u, v);
+            f = Frame(s);
+            const float trigger = pedal ? f.rightTrigger : f.leftTrigger;
+            const float other = pedal ? f.leftTrigger : f.rightTrigger;
+            CHECK(f.buttons == r.bit && trigger == 1.0f && other == 0.0f, "%s and %s at once: 0x%04x",
+                pedal ? "gas" : "brake", r.name, f.buttons);
+            // Lifting ends both.
+            Up(s, 30);
+            for (int i = 0; i < 1 + hid::touch::kPressUpdates; i++)
+                Frame(s);
+            f = Frame(s);
+            CHECK(f.buttons == 0 && (pedal ? f.rightTrigger : f.leftTrigger) == 0.0f, "the lift lets go of both");
+        }
+    }
+
+    // A pedal's thumb rolling onto the other pedal: both, the way a drift is
+    // held -- and back off it again, leaving the first one down.
+    Reset(s);
+    Inside(deck.throttle, 0.5f, 0.5f, u, v);
+    Down(s, deck, 22, u, v, hit);
+    Inside(deck.brake, 0.5f, 0.5f, u, v);
+    Move(s, deck, 22, u, v);
+    f = Frame(s);
+    CHECK(f.rightTrigger == 1.0f && f.leftTrigger == 1.0f, "both pedals from the throttle's thumb");
+    Inside(deck.throttle, 0.5f, 0.5f, u, v);
+    Move(s, deck, 22, u, v);
+    for (int i = 0; i < 1 + hid::touch::kPressUpdates; i++)
+        Frame(s);
+    f = Frame(s);
+    CHECK(f.rightTrigger == 1.0f && f.leftTrigger == 0.0f, "back on the throttle: the brake let go");
+    // The other way round, from the brake.
+    Reset(s);
+    Inside(deck.brake, 0.5f, 0.5f, u, v);
+    Down(s, deck, 23, u, v, hit);
+    Inside(deck.throttle, 0.5f, 0.5f, u, v);
+    Move(s, deck, 23, u, v);
+    f = Frame(s);
+    CHECK(f.leftTrigger == 1.0f && f.rightTrigger == 1.0f && f.buttons == 0, "and from the brake's, nothing else");
+
+    // A finger that landed on a button doesn't roll onto the next one.
     Reset(s);
     Inside(deck.nitro, 0.5f, 0.5f, u, v);
     Down(s, deck, 21, u, v, hit);
     Inside(deck.speedbreaker, 0.5f, 0.5f, u, v);
     Move(s, deck, 21, u, v);
     f = Frame(s);
-    CHECK(f.buttons == hid::touch::button::B, "only the throttle's thumb rolls: the nitrous still alone, 0x%04x", f.buttons);
+    CHECK(f.buttons == hid::touch::button::B, "only a pedal's thumb rolls: B still alone, 0x%04x", f.buttons);
 
     // Two fingers on one control: the last to lift ends it.
     Reset(s);
@@ -426,29 +641,30 @@ static void StateMachine()
         Frame(s);
     CHECK(Frame(s).buttons == 0, "and after its hold runs out, nothing");
 
-    // Steering: the first finger on the panel has it, the knob follows, and
-    // it centres on release.
+    // Steering: the first finger in the grab area has it, always relative to
+    // where it landed, and it centres on release.
     Reset(s);
-    const Rect& t = deck.steerTrack;
-    CHECK(Down(s, deck, 7, t.CentreX(), t.CentreY(), hit) && hit == Control::Steer, "a finger on the track steers");
+    const float centre = deck.steer.CentreX();
+    Down(s, deck, 7, centre, deck.steer.CentreY(), hit);
+    CHECK(hit == Control::Steer, "a finger on the base steers");
     f = Frame(s);
-    CHECK(f.steerSet && std::fabs(f.steer) < 1e-6f, "the track's middle is straight");
-    Move(s, deck, 7, t.CentreX() + 0.44f * t.w, t.CentreY());
-    CHECK(std::fabs(Frame(s).steer - 1.0f) < 1e-6f, "moving right turns right");
-    // Another finger on the panel presses nothing, and doesn't take the wheel.
-    CHECK(!Down(s, deck, 8, deck.steer.x + 0.01f, deck.steer.y + 0.01f, hit), "a second finger on the panel");
+    CHECK(f.steerSet && std::fabs(f.steer) < 1e-6f, "straight ahead where it landed");
+    Move(s, deck, 7, centre + deck.steerTravel, deck.steer.CentreY());
+    CHECK(std::fabs(Frame(s).steer - 1.0f) < 1e-6f, "a travel right turns right");
+    // Another finger in the grab area presses nothing, and doesn't take the
+    // wheel.
+    CHECK(!Down(s, deck, 8, deck.steerGrab.x + 0.01f, deck.steerGrab.Bottom() - 0.01f, hit), "a second finger there");
     CHECK(std::fabs(Frame(s).steer - 1.0f) < 1e-6f, "leaves the first one steering");
     Up(s, 7);
     f = Frame(s);
     CHECK(!f.steerSet && f.steer == 0.0f, "and letting go centres it");
-    // The other finger's lift does nothing.
     Up(s, 8);
     CHECK(Frame(s).steer == 0.0f, "the stray lift neither steers nor releases");
 
     // The shifter is a tap: one press, however briefly.
     Reset(s);
     Inside(deck.shiftUp, 0.5f, 0.5f, u, v);
-    CHECK(Down(s, deck, 9, u, v, hit) && hit == Control::ShiftUp, "a finger on the up half shifts up");
+    CHECK(Down(s, deck, 9, u, v, hit) && hit == Control::ShiftUp, "a finger on the up gear shifts up");
     Up(s, 9);
     int upFrames = 0;
     for (int i = 0; i < 4; i++)
@@ -458,7 +674,7 @@ static void StateMachine()
     Inside(deck.shiftDown, 0.5f, 0.5f, u, v);
     Down(s, deck, 10, u, v, hit);
     f = Frame(s);
-    CHECK(f.shiftDown && !f.shiftUp, "the down half shifts down alone");
+    CHECK(f.shiftDown && !f.shiftUp, "the down gear shifts down alone");
 
     // A menu opening (or the app leaving) drops everything at once.
     Reset(s);
@@ -507,16 +723,52 @@ static void StateMachine()
     CHECK(f.buttons == (hid::touch::button::Start | hid::touch::button::Back), "start and back: 0x%04x", f.buttons);
 }
 
-int main()
+// The overlay's own source, read (as tests/cursor_idle_test does for ui.cpp):
+// the deck's pictures are drawn once each -- the plate's translucency is baked
+// into the atlas, not added by a second pass -- and the accent is taken while
+// drawing rather than in a static initialiser.
+static void Overlay(const char* path)
+{
+    if (!path)
+        return;
+    FILE* file = fopen(path, "rb");
+    CHECK(file != nullptr, "the overlay's source opens: %s", path);
+    if (!file)
+        return;
+    std::string text;
+    char buffer[4096];
+    size_t read = 0;
+    while ((read = fread(buffer, 1, sizeof buffer, file)) > 0)
+        text.append(buffer, read);
+    fclose(file);
+
+    size_t draws = 0;
+    for (size_t at = text.find("AddImage("); at != std::string::npos; at = text.find("AddImage(", at + 1))
+        draws++;
+    CHECK(draws == 1, "one picture, one draw: %zu AddImage calls", draws);
+    CHECK(text.find("for (int pass") == std::string::npos, "no second pass over a picture");
+
+    const size_t drawn = text.find("void DrawTouchOverlay(");
+    CHECK(drawn != std::string::npos, "DrawTouchOverlay is there");
+    const size_t accent = text.find("AccentColour()");
+    CHECK(accent != std::string::npos && accent > drawn, "the accent is taken while drawing, not at start-up");
+}
+
+int main(int argc, char** argv)
 {
     Geometry();
-    Centring();
     OtherShapes();
     SafeArea();
+    Pedals();
+    Shape();
+    Pads();
+    Specs();
+    Styles();
+    Screens();
     HitTesting();
     Steering();
-    PanelFollowsThumb();
     StateMachine();
+    Overlay(argc > 1 ? argv[1] : nullptr);
 
     printf("%s (%d failures)\n", g_failures ? "FAILED" : "passed", g_failures);
     return g_failures ? 1 : 0;

@@ -30,6 +30,8 @@
 #include <SDL3/SDL_video.h>
 #include <vulkan/vulkan.h>
 
+struct ImDrawList;  // (ImGui's: the touch deck can be drawn into a panel's own list)
+
 namespace ui
 {
     struct VulkanTarget
@@ -139,8 +141,12 @@ namespace ui
     // Screens (settings_menu.cpp, perf_overlay.cpp, installer_screen.cpp).
     void DrawSettings();
     // The touch deck (touch_overlay.cpp; hid/touch.h), over the game's picture
-    // and under every panel of ours: nothing while the deck is off.
-    void DrawTouchOverlay();
+    // and over the performance overlay -- whose corner is START's and the
+    // D-pad's -- but under a toast, and gone altogether while a menu of ours is
+    // up, since a menu owns the input. `list` is the draw list to fill: the
+    // background one when it is null (under every panel), the performance
+    // overlay's own so that the deck is drawn after its readout and covers it.
+    void DrawTouchOverlay(ImDrawList* list = nullptr);
     void ResetSettingsMenu();  // on opening: focus the first row, no dialog left open
     // Main thread, from ProcessEvent on a key-down or key-up while the menu
     // is open, after the F1 toggle: true when a Controls row was waiting
@@ -175,6 +181,9 @@ namespace ui
     // Shared look (ui.cpp).
     SDL_Window* GetWindow();
     float Scale();         // 1 at 720 points of window height
+    // The accent our screens share (a selected tab, a slider's grab), packed
+    // as ImGui's ImU32: a held touch control tints to it (touch_overlay.cpp).
+    uint32_t AccentColour();
     void PushAccentText();  // ImGui::PushStyleColor(ImGuiCol_Text, accent)
     void PopAccentText();
     // Large accent heading; `hint`, if any, right-aligned on its baseline.

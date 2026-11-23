@@ -80,6 +80,13 @@ namespace ui
             ImGui::TextDisabled("CPU render %.1f ms   GPU %.1f ms", perf.cpMs, perf.gpuMs);
             ImGui::TextDisabled("%.0f draws per frame", perf.draws);
         }
+        // The touch deck over this panel: this corner is START's and the
+        // D-pad's, and a control a thumb cannot see is one it cannot press.
+        // Drawn into this window's list, after its own lines, so the deck
+        // covers the readout -- while a toast and the settings panel, windows
+        // of their own, still get the last word (the menu hides the deck
+        // altogether: it owns the input).
+        DrawTouchOverlay(ImGui::GetWindowDrawList());
         ImGui::End();
         ImGui::PopFont();
         ImGui::PopStyleVar(2);

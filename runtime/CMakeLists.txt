@@ -34,6 +34,9 @@ endif()
 # download page's code in Check for Updates. Part of the runtime itself, not
 # a library of its own, so the iOS app (scripts/ios/build.sh) links it too.
 list(APPEND RUNTIME_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/qrcodegen/qrcodegen.c)
+# stb_image (thirdparty/stb_image, compiled for PNG alone): the touch deck's
+# button art comes in as a PNG (ui/deck_art.cpp).
+list(APPEND RUNTIME_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/stb_image/stb_image.cpp)
 if(APPLE)
     # Apple's own glue for macOS and iOS (the thermal state) is
     # Objective-C++ on Foundation alone, platform/apple/*.mm. Built with the
@@ -92,6 +95,17 @@ target_link_libraries(imgui PUBLIC SDL3::SDL3 Vulkan::Vulkan)
 file(READ ${IMGUI}/fonts/Roboto-Medium.ttf UI_FONT_HEX HEX)
 string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," UI_FONT_BYTES "${UI_FONT_HEX}")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/generated/ui_font.inc "${UI_FONT_BYTES}\n")
+# The touch deck's button art (ui/touch/deck_atlas.png, packed by
+# scripts/gen_deck_atlas.py), compiled in as the PNG it is: one texture, decoded
+# at startup (ui/deck_art.cpp), 1.49 MB of hex for 300 KB of picture. A new
+# atlas reconfigures. Written beside it and copied only when it changed, so a
+# configure cannot recompile deck_art.cpp for nothing.
+set(SB_DECK_ATLAS ${CMAKE_CURRENT_SOURCE_DIR}/ui/touch/deck_atlas.png)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${SB_DECK_ATLAS})
+file(READ ${SB_DECK_ATLAS} DECK_ATLAS_HEX HEX)
+string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," DECK_ATLAS_BYTES "${DECK_ATLAS_HEX}")
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/generated/deck_atlas.inc.new "${DECK_ATLAS_BYTES}\n")
+configure_file(${CMAKE_CURRENT_BINARY_DIR}/generated/deck_atlas.inc.new ${CMAKE_CURRENT_BINARY_DIR}/generated/deck_atlas.inc COPYONLY)
 # AMD FidelityFX Super Resolution 1 (thirdparty/fsr1, vendored, unmodified):
 # the text of its two headers, compiled in (generated/fsr1_headers.inc) for
 # Upscaling's FSR 1 shaders, which glslang compiles while the game runs

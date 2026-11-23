@@ -488,13 +488,17 @@ target_link_libraries(language_test PRIVATE ${SB_SETTINGS_LIBS})
 target_include_directories(language_test SYSTEM PRIVATE ${ROOT}/tools/XenonRecomp/thirdparty/tomlplusplus/include)
 # The keyboard's controls and how held keys become a pad (hid/key_map.h), header only.
 sb_test(key_map_test)
-# The touch deck (hid/touch_layout.h, hid/touch_input.h, both header only and
-# SDL-free): where each of the 16 controls sits on the game's picture at the
-# design's reference size and at other picture shapes, the safe area's margin,
-# what a finger at a point presses, the steering's drag mapping, and the
-# presses a set of fingers amounts to (one finger per control, several on one,
-# a tap that must outlive its frame, a finger that lands on nothing).
-sb_test(touch_deck_test)
+# The touch deck (hid/touch_control.h, hid/touch_spec.h, hid/touch_layout.h,
+# hid/touch_input.h, all header only and SDL-free; hid/touch_art.h is generated
+# from the atlas and committed): where each of the 17 controls sits on the
+# game's picture at the design's reference size and at other picture shapes, the
+# safe area's margin, the picture's own outline as the touch area (a round
+# button's corners are not buttons), what a finger at a point presses, the
+# steering's drag mapping, and the presses a set of fingers amounts to (one
+# finger per control, several on one, a tap that must outlive its frame, a
+# finger that lands on nothing). The overlay's source is passed so the test can
+# check the deck is drawn once per control.
+sb_test(touch_deck_test ARGS ${RT}/ui/touch_overlay.cpp)
 # The touch deck's haptics (hid/haptic_feedback.h, header only): the game's
 # Xbox 360 motors as one phone pattern, the buttons' taps, the steering's
 # centre and lock detents, and the engine's start/stop gate.

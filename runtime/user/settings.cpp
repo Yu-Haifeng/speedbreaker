@@ -444,6 +444,13 @@ namespace settings
               .description = "The on-screen controls: Auto shows them where there is a touchscreen and no controller.",
               .env = "NFSMW_TOUCH_CONTROLS", .defaultValue = double(int32_t(TouchControlsMode::Auto)),
               .entries = kTouchControlsEntries },
+            // Touch Size: the deck's own sizes, scaled. The screen's size is
+            // already accounted for (a phone's picture is smaller than the
+            // design's, and its buttons would be too): this is on top of that.
+            { .id = Id::TouchSize, .category = Category::Input, .type = Type::Int, .apply = Apply::Live,
+              .table = "input", .key = "touch_size", .label = "Touch Size",
+              .description = "How big the on-screen controls are: 100% is what the screen asks for, smaller or larger makes them easier to reach or keeps them out of the way.",
+              .env = "NFSMW_TOUCH_SIZE", .defaultValue = 100, .min = 75, .max = 125, .step = 5, .unit = "%" },
             // Wheel (Settings > Wheel; hid/wheel_map.h and hid/wheel.cpp
             // read them). The page shows only while a wheel is connected.
             { .id = Id::Wheel, .category = Category::Wheel, .type = Type::Bool, .apply = Apply::Live,

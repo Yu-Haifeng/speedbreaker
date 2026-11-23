@@ -3,13 +3,16 @@
 // Which finger presses what on the touch deck (hid/touch_layout.h), and what
 // the game is told: the design's rules, and the pad they amount to.
 //
-//   - A press starts where a finger lands and nowhere else -- but for one
-//     roll the thumb makes: off the throttle onto the nitrous or the
-//     Speedbreaker orb above it, which takes that orb too while the pedal
-//     stays down (a thumb held on a pedal cannot reach them any other way).
-//     Every other control is untouched by a slide, and a finger that slides
-//     off a control keeps it until it lifts (the design's pointer capture),
-//     so a throttle held by a thumb that drifts out of its pedal still pulls.
+//   - A press starts where a finger lands and nowhere else -- but for the roll
+//     a pedal's thumb makes: from the throttle or the brake onto any of the
+//     four face buttons on the fan above them, or onto the other pedal, either
+//     of which is kept pressed along with the one it started on (a thumb held
+//     on a pedal cannot reach them any other way, and boosting, slowing time,
+//     looking back or braking with the throttle still down is meant to be done
+//     without lifting off). Every other control is untouched by a slide,
+//     and a finger that slides off a control keeps it until it lifts (the
+//     design's pointer capture), so a throttle held by a thumb that drifts out
+//     of its pedal still pulls.
 //   - A control held by several fingers stays pressed until the last of them
 //     lifts.
 //   - Steering is one finger's: the first that lands on the panel has it, and
@@ -59,7 +62,7 @@ namespace hid::touch
         {
             uint64_t id = 0;  // 0: free
             Control control = Control::Count;  // what the finger landed on
-            Control rolled = Control::Count;   // and what it rolled onto from the throttle
+            Control rolled = Control::Count;   // and what it rolled onto from its pedal
         };
         Finger finger[kMaxFingers];
         uint64_t steerId = 0;  // the finger steering (0: none)
@@ -145,11 +148,24 @@ namespace hid::touch
         return true;
     }
 
-    // The two the game wants held with the throttle: nitrous and the
-    // Speedbreaker. The cluster puts them a thumb's roll above the pedal.
-    constexpr bool Rollable(Control c)
+    // A pedal: where a thumb sits that may roll on.
+    constexpr bool Pedal(Control c)
     {
-        return c == Control::Nitro || c == Control::Speedbreaker;
+        return c == Control::Throttle || c == Control::Brake;
+    }
+
+    // The four the game wants held with a pedal -- A, Y, B and X, the fan the
+    // thumb rolls up onto.
+    constexpr bool FaceButton(Control c)
+    {
+        return c == Control::Handbrake || c == Control::RearView || c == Control::Nitro || c == Control::Speedbreaker;
+    }
+
+    // What a pedal's thumb rolls onto: one of those four, or the other pedal
+    // (both pedals at once is a drift, and they are one thumb's slide apart).
+    constexpr bool RollsOnto(Control anchor, Control target)
+    {
+        return Pedal(anchor) && target != anchor && (FaceButton(target) || Pedal(target));
     }
 
     inline void Move(State& state, const Deck& deck, uint64_t id, float u, float v)
@@ -163,13 +179,13 @@ namespace hid::touch
         }
         for (State::Finger& f : state.finger)
         {
-            if (f.id != id || f.control != Control::Throttle)
+            if (f.id != id || !Pedal(f.control))
                 continue;
-            // The throttle's thumb rolling onto the nitrous or the
-            // Speedbreaker: both are held, and the orb lets go as the thumb
-            // comes back down (or anywhere else: only those two roll).
+            // A pedal's thumb rolling onto a face button or onto the other
+            // pedal: both are held, and the one it rolled onto lets go as the
+            // thumb comes back (or anywhere else: only those five roll).
             const Control hit = HitTest(deck, u, v);
-            const Control rolled = Rollable(hit) ? hit : Control::Count;
+            const Control rolled = RollsOnto(f.control, hit) ? hit : Control::Count;
             if (rolled == f.rolled)
                 return;
             f.rolled = rolled;
@@ -177,7 +193,6 @@ namespace hid::touch
                 state.hold[size_t(rolled)] = kPressUpdates;
             return;
         }
-        (void)v;
     }
 
     inline void Up(State& state, uint64_t id)
@@ -249,8 +264,8 @@ namespace hid::touch
     // The deck for this canvas and this state: the steering panel centred
     // where the thumb is holding it (as close as the canvas's margins let it),
     // or in the handoff's corner when no thumb has it.
-    inline Deck DeckFor(const Canvas& canvas, const State& state)
+    inline Deck DeckFor(const Canvas& canvas, const State& state, const Style& style = Style{})
     {
-        return state.steerAnchored ? Layout(canvas, state.steerOrigin) : Layout(canvas);
+        return state.steerAnchored ? Layout(canvas, state.steerOrigin, style) : Layout(canvas, style);
     }
 }

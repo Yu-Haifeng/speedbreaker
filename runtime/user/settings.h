@@ -80,6 +80,9 @@ namespace settings
         // The touch controls (hid/touch.h): Auto, On, Off. Auto shows the deck
         // where there is a touchscreen and no controller to play with instead.
         TouchControls,
+        // How big the on-screen controls are, as a percentage of what the
+        // screen asks for (hid/touch_layout.h: Style::scale, ScaleFor).
+        TouchSize,
         // Wheel (the [wheel] table): a USB steering wheel as the pad
         // (hid/wheel_map.h). The page shows itself only while one is
         // connected; the four axis options are hidden, and hold what

@@ -18,6 +18,10 @@ namespace
     hid::touch::Sample s_sample;
     hid::touch::Canvas s_canvas;
     hid::touch::Deck s_deck;
+    // The design's sizes, as they are: Settings > Input > Touch Size scales
+    // them (Style::scale), and the screen's own size is what ScaleFor makes of
+    // the canvas, so this is only the player's half of it.
+    hid::touch::Style s_style;
     bool s_active = false;
     int s_touchDevices = 0;
 
@@ -62,24 +66,32 @@ namespace
         return true;
     }
 
-    // The deck's canvas: the picture's shape, with the design's margins or the
-    // screen's safe area where that reaches further in.
+    // The deck's canvas: the picture's shape and worth in points, with the
+    // design's margins or the screen's safe area where that reaches further in.
     hid::touch::Canvas CanvasFromWindow()
     {
         const video::PictureRect picture = video::GetPictureRect();
-        hid::touch::Canvas canvas = hid::touch::CanvasFor(picture.aspect);
+        hid::touch::Canvas canvas = hid::touch::CanvasFor(picture.aspect, s_style);
         SDL_Window* window = ui::GetWindow();
         if (!window)
             return canvas;
         int width = 0, height = 0;
         SDL_GetWindowSize(window, &width, &height);
+        if (width <= 0 || height <= 0)
+            return canvas;
+        // What a cqw is worth in points: the picture's width over a hundred.
+        // The deck sizes itself by it (hid/touch_layout.h's ScaleFor), so that
+        // a button is a thumb's width rather than a fraction of the picture.
+        // (The window's points, not the swapchain's: a present scale is undone
+        // by the time the frame reaches the screen.)
+        const float pictureW = picture.w * float(width), pictureH = picture.h * float(height);
+        const float pictureX = picture.x * float(width), pictureY = picture.y * float(height);
+        canvas.pointsPerCqw = pictureW * 0.01f;
         SDL_Rect safe{};
-        if (width <= 0 || height <= 0 || !SDL_GetWindowSafeArea(window, &safe) || safe.w <= 0 || safe.h <= 0)
+        if (!SDL_GetWindowSafeArea(window, &safe) || safe.w <= 0 || safe.h <= 0)
             return canvas;
         // The safe area is the window's; the margins are the picture's, so what
         // lies outside the picture doesn't count.
-        const float pictureW = picture.w * float(width), pictureH = picture.h * float(height);
-        const float pictureX = picture.x * float(width), pictureY = picture.y * float(height);
         return hid::touch::InsetsFor(canvas, pictureW, std::max(0.0f, float(safe.x) - pictureX),
             std::max(0.0f, float(safe.y) - pictureY), std::max(0.0f, pictureX + pictureW - float(safe.x + safe.w)),
             std::max(0.0f, pictureY + pictureH - float(safe.y + safe.h)));
@@ -178,6 +190,9 @@ namespace hid::touch
             s_deck = {};
             return;
         }
+        // Settings > Input > Touch Size: the player's share of the deck's size
+        // (the screen's is the canvas's, see CanvasFromWindow and ScaleFor).
+        s_style.scale = std::clamp(float(settings::GetInt(settings::Id::TouchSize)) / 100.0f, 0.5f, 2.0f);
         if (!video::GetPictureRect().Valid())
         {
             // No picture yet (the game hasn't presented): nothing to sit on.
@@ -188,7 +203,7 @@ namespace hid::touch
         s_canvas = CanvasFromWindow();
         // The steering panel sits where its thumb last took it (or in the
         // handoff's corner until then), so it comes to the thumb.
-        s_deck = DeckFor(s_canvas, s_state);
+        s_deck = DeckFor(s_canvas, s_state, s_style);
         s_sample = SampleOf(s_state);
     }
 
@@ -211,6 +226,11 @@ namespace hid::touch
     const Deck& DeckNow()
     {
         return s_deck;
+    }
+
+    const Style& StyleNow()
+    {
+        return s_style;
     }
 
     void Reset()

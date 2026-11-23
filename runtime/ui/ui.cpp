@@ -2,6 +2,7 @@
 #include <stdafx.h>
 #include "ui.h"
 #include "cursor_idle.h"
+#include "deck_art.h"
 
 #include <hid/input.h>
 #include <hid/touch.h>
@@ -455,7 +456,12 @@ namespace ui
         }
 #endif
 
-        const ImVec4 kAccent(1.00f, 0.66f, 0.12f, 1.00f);
+        // The one accent every screen of ours wears -- the settings' selected
+        // tab, a slider's grab, a heading, a highlight -- and the colour a held
+        // touch control tints to (AccentColour). Kept in the packed form the
+        // draw lists want, and turned into ImGui's style colour here.
+        constexpr uint32_t kAccentPacked = IM_COL32(255, 168, 31, 255);
+        const ImVec4 kAccent = ImGui::ColorConvertU32ToFloat4(kAccentPacked);
 
         void CheckVk(VkResult result)
         {
@@ -714,6 +720,9 @@ namespace ui
             return false;
         }
         s_rendererReady = true;
+        // The touch deck's button art (ui/deck_art.h): one texture, decoded and
+        // uploaded here. Without it the deck draws its controls bare.
+        deckart::Initialize(target);
         s_ready = true;
 #if defined(__APPLE__) && TARGET_OS_IOS
         // Else iOS takes the three-finger tap for its edit menu (and a
@@ -750,6 +759,7 @@ namespace ui
             return;
         if (s_settingsOpen)
             CloseSettings();
+        deckart::Shutdown();  // (before the backend: it frees the descriptor)
         {
             std::lock_guard lock(*s_target.queueMutex);
             ImGui_ImplVulkan_Shutdown();
@@ -894,10 +904,12 @@ namespace ui
         // and 40 points either side in turn, for the cursor's hiding:
         // SDL_WarpMouseInWindow moves the real pointer (SDL reports a warp as
         // a motion of no distance, which isn't the mouse moving), then the
-        // motion a mouse moving there makes is posted. MouseDown:u,v presses
-        // the left button at those fractions of the window, MouseTo:u,v moves
+        // motion a mouse moving there makes is posted. MouseDown:u:v presses
+        // the left button at those fractions of the window, MouseTo:u:v moves
         // it there, MouseUp lets it go: with NFSMW_TOUCH_MOUSE the deck's
         // finger, so a capture can show held controls and a steering drag.
+        // (A colon between the two fractions, not a comma: a comma ends the
+        // key and the second one would be read as a key of its own.)
         constexpr SDL_Keycode kFocusLost = SDLK_EXTENDED_MASK | 0x7F01, kFocusGained = SDLK_EXTENDED_MASK | 0x7F02,
                               kShot = SDLK_EXTENDED_MASK | 0x7F03, kMouseMove = SDLK_EXTENDED_MASK | 0x7F04,
                               kMouseDown = SDLK_EXTENDED_MASK | 0x7F05, kMouseUp = SDLK_EXTENDED_MASK | 0x7F06,
@@ -936,11 +948,11 @@ namespace ui
                     float x = 0.0f, y = 0.0f;
                     if (name.starts_with("MouseDown:") || name.starts_with("MouseTo:"))
                     {
-                        const size_t at = name.find(':'), comma = name.find(',', at + 1);
-                        if (comma != std::string_view::npos)
+                        const size_t at = name.find(':'), sep = name.find(':', at + 1);
+                        if (sep != std::string_view::npos)
                         {
-                            x = std::atof(std::string(name.substr(at + 1, comma - at - 1)).c_str());
-                            y = std::atof(std::string(name.substr(comma + 1)).c_str());
+                            x = std::atof(std::string(name.substr(at + 1, sep - at - 1)).c_str());
+                            y = std::atof(std::string(name.substr(sep + 1)).c_str());
                         }
                         name = name.substr(0, at);
                     }
@@ -1235,8 +1247,11 @@ namespace ui
             else if (perf)
                 DrawPerfOverlay();
         }
-        if (deck)
-            DrawTouchOverlay();  // (the background list: under every panel)
+        // The deck is on the background list, under any panel of ours -- but for
+        // the performance overlay, whose corner it would be hidden in: that one
+        // draws it itself, over its own readout (perf_overlay.cpp).
+        if (deck && !perf)
+            DrawTouchOverlay();
         if (toast)
             DrawToast(toastText);
         ImGui::Render();
@@ -1333,6 +1348,11 @@ namespace ui
     float Scale()
     {
         return s_scale;
+    }
+
+    uint32_t AccentColour()
+    {
+        return kAccentPacked;
     }
 
     void PushAccentText()

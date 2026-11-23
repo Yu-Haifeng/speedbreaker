@@ -8,6 +8,20 @@ it's built into the game).
 
 ### What's new
 
+- **The on-screen controls are the deck's own art**: each button is the NFS.MW.IOS deck's picture
+  (a disc with the glyph of what it does) instead of the drawn plates and icons, and the steering
+  is a round stick with an 18 cqw base that comes to your thumb, rather than a horizontal slider,
+  and the right thumb's pedals and face buttons are laid out the way the iOS deck has them: the
+  throttle and brake standing side by side, A, X, B and Y on an even fan around a thumb's turn.
+  Each button is drawn at its own picture's proportions (the brake stands shorter than the
+  throttle, as its picture is), and a thumb presses the picture's outline rather than the box
+  around it: a round button's corners and a pedal's cut corners press nothing, while the gears'
+  cut-out middles still press the gear. Where a control has room, its touch area also grows to a
+  thumb's size, but never as far as the gap to its neighbour. The deck sizes itself for the
+  screen: a thumb is the same width on a phone and on a tablet, so a phone's buttons grow and a
+  tablet's shrink, as far as the picture's height allows -- and Settings > Input > Touch Size
+  scales them from there, 75% to 125%. LB has its own picture now: the same mirror as Y, with a
+  pair of chevrons looking back inside its glass instead of the reflections.
 - **Haptics for the touch controls** (iPhone, and iPad models with a Taptic Engine): with no
   controller or wheel, the game's rumble drives the phone like an Xbox 360 pad's two motors
   (heavy and low, light and fast), each on-screen button gives a short tap, and the steering

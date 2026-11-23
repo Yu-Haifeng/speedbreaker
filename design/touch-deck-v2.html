@@ -1,4 +1,16 @@
 <!DOCTYPE html>
+<!--
+  Historical. This is the glass-and-vector-icons material the touch deck had
+  before it was redrawn with the NFS.MW.IOS deck's own pictures: the plates,
+  the soft rings, the 24x24 SVG glyphs and the numbers below are the reference
+  for how it used to look, not for how runtime/ui/touch_overlay.cpp draws it
+  now. What replaced it: scripts/gen_deck_atlas.py packs those pictures into
+  runtime/ui/touch/deck_atlas.png and hid/touch_art.h, and the overlay draws
+  one atlas cell per control, with the touch area following the picture's
+  outline. The layout geometry this page computes came from
+  runtime/hid/touch_layout.h and still matches it, but for the pedals, whose
+  heights now come from their own pictures.
+-->
 <html lang="zh-CN" data-material="v2">
 <head>
 <meta charset="utf-8">

@@ -12,9 +12,9 @@
 //     close as the canvas's margins let it), and it goes back to its corner
 //     when the thumb lifts.
 //   - Where a finger presses is decided on the way down and loosened on the
-//     way up, but for the thumb that rolls off the throttle onto the nitrous
-//     or the Speedbreaker above it, which takes that orb too: the rules are
-//     hid/touch_input.h's.
+//     way up, but for a pedal's thumb rolling up onto one of the four face
+//     buttons, or across onto the other pedal, which it takes too and keeps
+//     along with the first: the rules are hid/touch_input.h's.
 //   - On: Settings > Input > Touch Controls. Auto (the default) shows the
 //     deck where there is a touchscreen and no controller to play with
 //     instead, so an iPhone or iPad alone gets it, a Steam Deck (its own
@@ -56,6 +56,9 @@ namespace hid::touch
     // rectangles the fingers were tested against.
     const Canvas& CanvasNow();
     const Deck& DeckNow();
+    // The sizes the deck was laid out with (a held control's shrink, a key
+    // capsule's height), so drawing and layout cannot disagree about them.
+    const Style& StyleNow();
     // Every finger let go without lifting (the app went to the background).
     void Reset();
 }

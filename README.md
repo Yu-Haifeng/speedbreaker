@@ -449,25 +449,34 @@ tablet), the game puts its controls on the picture, the whole Xbox 360 set:
 
 | Where | Controls |
 |---|---|
-| Left thumb | **Steering**: the panel comes to your thumb wherever you press on the left, and the wheel follows it left to right; letting go centres the wheel and sends the panel back |
-| Right thumb | **Throttle** and **brake** pedals along the bottom, **A** (handbrake), **B** (nitrous) and **X** (Speedbreaker) above them |
-| Top left | The **D-pad**: shop or event, Blacklist, world map, messages |
-| Top middle | **Start** (pause) and **Back** (reset car) |
-| Top right | **Y** and **LB** (rear view, quick rear view), **RB** (camera), and the shifter (**RS** up and down) |
+| Left thumb | **Steering**: a round stick that comes to your thumb wherever you press on the left; drag left or right against the spot you pressed, and letting go centres the stick and sends its base back to the corner |
+| Right thumb | **Throttle** and **brake**, two pedals standing at the bottom right, and the four face buttons on an arc to their left: **A** (handbrake), **X** (Speedbreaker), **B** (nitrous), **Y** (rear view), a step apart |
+| Top left | **START** (pause) and **BACK** (reset car), with the **D-pad** under them: shop or event, Blacklist, world map, messages |
+| Top right | **LB** (quick rear view) and **RB** (camera), with the shifter (**RS** up and down) under them |
 
-Each control carries the icon of what it does and the name of the key it stands for. The pedals,
-the steering and the four face buttons stay pressed while your thumb is down; the rest are taps. A
-thumb that slides off a pedal keeps it — lift to let go. From the throttle, though, a thumb that
-rolls up onto **B** (nitrous) or **X** (Speedbreaker) takes that too while the pedal stays down, so
-you can boost or slow time without letting go of the throttle. A three-finger tap still opens the
-settings from anywhere.
+Each control is one of the deck's own pictures (a disc with the glyph of what it does) and the name
+of the key it stands for; a held control's glyph turns the accent colour. Each is drawn at its own
+picture's proportions — the two pedals are the same width and as tall as their own pictures are, so
+the brake stands shorter than the throttle — and what a thumb presses is that picture's outline
+rather than the box around it: the corners of a round button, and the cut corners of a pedal, press
+nothing. The pedals, the steering and the four face buttons stay pressed while your thumb is down;
+the rest are taps. A
+thumb that slides off a pedal keeps it — lift to let go. From either pedal, though, a thumb that
+rolls up onto any of the four face buttons — **A**, **Y**, **B** or **X** — takes that too and
+keeps it while the pedal stays down, so you can boost, slow time or look back without lifting off
+the throttle or the brake; slide across from one pedal to the other and both stay down, which is
+how a drift is held. A three-finger tap still opens the settings from anywhere.
 
 The controls sit on the game's picture, in the handoff's proportions, so they keep their place on
-the image whatever the screen's shape, and stay clear of a notch. The steering panel is the
-exception: while you hold it, it comes to your thumb, as far as the picture's margins allow, and
-it returns to its corner when you let go. Settings > Input > Touch
+the image whatever the screen's shape, and stay clear of a notch. Their size follows the screen
+rather than the picture: a thumb is the same width on a phone and on a tablet, so a phone's deck
+grows and a tablet's shrinks, as far as the picture's height allows. The stick is the exception:
+while you hold it, its base comes to your thumb, as far as the picture's margins allow, and it
+returns to its corner when you let go. Settings > Input > Touch
 Controls: **Auto** (the default) shows them where there is a touchscreen and no controller, **On**
-keeps them with a controller in hand, **Off** hides them.
+keeps them with a controller in hand, **Off** hides them. **Touch Size** scales them: 100% is what
+the screen asks for, 75% to 125% is on top of that, and past what the picture's height allows the
+deck stops growing.
 
 On iPhone (and an iPad with a Taptic Engine), the screen's controls vibrate: the game's rumble
 reaches the phone like an Xbox 360 pad's two motors, heavy and low on one side and light and fast
