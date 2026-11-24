@@ -263,9 +263,15 @@ namespace hid::touch
 
     // The deck for this canvas and this state: the steering panel centred
     // where the thumb is holding it (as close as the canvas's margins let it),
-    // or in the handoff's corner when no thumb has it.
-    inline Deck DeckFor(const Canvas& canvas, const State& state, const Style& style = Style{})
+    // or in the handoff's corner when no thumb has it -- unless the player has
+    // put the stick somewhere, in which case it stays there and no thumb
+    // summons it.
+    inline Deck DeckFor(const Canvas& canvas, const State& state, const Style& style = Style{},
+        const Overrides& overrides = Overrides{})
     {
-        return state.steerAnchored ? Layout(canvas, state.steerOrigin, style) : Layout(canvas, style);
+        const Placement& steer = overrides.of[size_t(Control::Steer)];
+        const bool placed = steer.dx != 0.0f || steer.dy != 0.0f || steer.scale != 1.0f;
+        return state.steerAnchored && !placed ? Layout(canvas, state.steerOrigin, style, overrides)
+                                              : Layout(canvas, style, overrides);
     }
 }

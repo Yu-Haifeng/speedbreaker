@@ -6,6 +6,14 @@
 #include <thirdparty/stb_image/stb_image.h>
 
 #include <climits>
+#include <memory>
+#include <vector>
+
+#include <hid/touch_art_state.h>
+
+#include <user/touch_deck_file.h>
+
+#include "player_pictures.h"
 
 #include <imgui_impl_vulkan.h>
 
@@ -28,6 +36,25 @@ namespace ui::deckart
         // not the font atlas's, so it is ours to destroy, too.
         ImTextureData s_texture;
         std::mutex* s_queueMutex = nullptr;
+
+        // The player's sheet (ui/player_pictures.h), and the one a reload
+        // replaced -- it stays until its last frame has left the GPU.
+        std::unique_ptr<ImTextureData> s_player;
+        std::vector<std::unique_ptr<ImTextureData>> s_retiring;
+
+        // Hands `texture` to the backend's destroy path, which frees it only
+        // once `UnusedFrames` frames have gone by (imgui_impl_vulkan.cpp: a
+        // texture it does not own is not counted for it, which is what Tick is
+        // for).
+        void Retire(std::unique_ptr<ImTextureData> texture)
+        {
+            if (!texture)
+                return;
+            texture->DestroyPixels();
+            texture->UnusedFrames = 0;
+            texture->SetStatus(ImTextureStatus_WantDestroy);
+            s_retiring.push_back(std::move(texture));
+        }
     }
 
     bool Initialize(const VulkanTarget& target)
@@ -72,6 +99,7 @@ namespace ui::deckart
 
     void Shutdown()
     {
+        ShutdownPlayer();
         if (s_texture.Status != ImTextureStatus_OK)
             return;
         // The backend only frees a texture it considers unused, and it counts
@@ -97,8 +125,96 @@ namespace ui::deckart
         return Ready() ? s_texture.GetTexRef() : ImTextureRef();
     }
 
+    bool PlayerReady()
+    {
+        return s_player && s_player->Status == ImTextureStatus_OK;
+    }
+
+    ImTextureRef PlayerAtlas()
+    {
+        return PlayerReady() ? s_player->GetTexRef() : ImTextureRef();
+    }
+
+    void ReloadPlayerPictures()
+    {
+        if (!s_queueMutex)
+            return;  // (no GPU yet: Initialize has not run)
+
+        pictures::Sheet sheet;
+        std::string why;
+        if (!pictures::Build(touchdeck::PicturesPath(), sheet, why))
+        {
+            fprintf(stderr, "[deck] the pictures in %s: %s\n", touchdeck::PicturesPath().string().c_str(),
+                why.c_str());
+            return;  // (keep whatever was already up)
+        }
+        // Nothing may draw a cell of the sheet this replaces: the pictures go
+        // back to the deck's own until the new one is up.
+        hid::touch::art::RestoreAll();
+        Retire(std::move(s_player));
+        if (sheet.Empty())
+            return;
+
+        auto texture = std::make_unique<ImTextureData>();
+        texture->Create(ImTextureFormat_RGBA32, sheet.width, sheet.height);
+        memcpy(texture->Pixels, sheet.rgba.data(), sheet.rgba.size());
+        {
+            std::lock_guard lock(*s_queueMutex);
+            ImGui_ImplVulkan_UpdateTexture(texture.get());
+        }
+        if (texture->Status != ImTextureStatus_OK)
+        {
+            fprintf(stderr, "[deck] the player's pictures: the upload failed\n");
+            texture->DestroyPixels();
+            return;
+        }
+        s_player = std::move(texture);
+        for (pictures::Sheet::Entry& entry : sheet.entries)
+            hid::touch::art::Install(entry.id, entry.info, std::move(entry.field));
+    }
+
+    void Tick()
+    {
+        if (!s_queueMutex)
+            return;
+        for (auto it = s_retiring.begin(); it != s_retiring.end();)
+        {
+            ImTextureData* texture = it->get();
+            if (texture->Status == ImTextureStatus_WantDestroy)
+                texture->UnusedFrames++;
+            {
+                std::lock_guard lock(*s_queueMutex);
+                ImGui_ImplVulkan_UpdateTexture(texture);
+            }
+            if (texture->Status == ImTextureStatus_Destroyed)
+                it = s_retiring.erase(it);
+            else
+                ++it;
+        }
+    }
+
+    void ShutdownPlayer()
+    {
+        // (Any sheet still retiring holds a Vulkan image too, but the device
+        // goes in the same breath: nothing to reap one texture at a time.)
+        s_retiring.clear();
+        Retire(std::move(s_player));
+        for (std::unique_ptr<ImTextureData>& texture : s_retiring)
+        {
+            texture->UnusedFrames = INT_MAX;
+            if (s_queueMutex)
+            {
+                std::lock_guard lock(*s_queueMutex);
+                ImGui_ImplVulkan_UpdateTexture(texture.get());
+            }
+        }
+        s_retiring.clear();
+    }
+
     const hid::touch::art::Info& Info(Art art)
     {
-        return hid::touch::art::kArt[size_t(art)];
+        // (The table, not the generated one: a picture the player supplied is
+        // installed over it -- hid/touch_art_state.h.)
+        return hid::touch::art::InfoOf(art);
     }
 }

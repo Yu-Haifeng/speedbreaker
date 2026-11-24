@@ -42,7 +42,21 @@ namespace ui
         bool Ready();
         // The atlas as a draw list texture, null without one.
         ImTextureRef Atlas();
-        // A picture's cell, bounds and shape (hid/touch_art.h).
+        // A picture's cell, bounds and shape (hid/touch_art.h --
+        // hid/touch_art_state.h's table, which a player's picture replaces).
         const hid::touch::art::Info& Info(Art art);
+
+        // The player's own pictures (ui/player_pictures.h): a second sheet,
+        // built from touch-pictures/ and installed over the deck's. Called
+        // after Initialize and after the editor saves; false while there are
+        // none, and the deck's own pictures are what is drawn.
+        bool PlayerReady();
+        ImTextureRef PlayerAtlas();
+        void ReloadPlayerPictures();
+        // Between frames: retires the sheet a reload replaced (its last frame
+        // has to leave the GPU before the texture goes).
+        void Tick();
+        // Before the backend shuts down, with Shutdown.
+        void ShutdownPlayer();
     }
 }

@@ -723,6 +723,9 @@ namespace ui
         // The touch deck's button art (ui/deck_art.h): one texture, decoded and
         // uploaded here. Without it the deck draws its controls bare.
         deckart::Initialize(target);
+        // The player's own pictures, if they put any in touch-pictures/
+        // (ui/player_pictures.h): a second sheet over the deck's own.
+        deckart::ReloadPlayerPictures();
         s_ready = true;
 #if defined(__APPLE__) && TARGET_OS_IOS
         // Else iOS takes the three-finger tap for its edit menu (and a
@@ -850,8 +853,13 @@ namespace ui
         case SDL_EVENT_FINGER_CANCELED:
             if (TrackFinger(e.tfinger) && !s_modal)
             {
-                fprintf(stderr, "[ui] three-finger tap\n");
-                s_settingsOpen ? CloseSettings() : OpenSettings();
+                // (Not while the deck is being edited: a gesture must not throw
+                // the arrangement away -- Cancel, B or Esc are how that is done.)
+                if (!TouchDeckEditing())
+                {
+                    fprintf(stderr, "[ui] three-finger tap\n");
+                    s_settingsOpen ? CloseSettings() : OpenSettings();
+                }
             }
             return;  // (ImGui's backend takes touch as the mouse SDL makes of it)
         case SDL_EVENT_MOUSE_MOTION:
@@ -1032,8 +1040,13 @@ namespace ui
                 e.button.windowID = SDL_GetWindowID(s_window);
                 e.button.which = 1;  // a mouse (not SDL_TOUCH_MOUSEID or SDL_PEN_MOUSEID)
                 e.button.button = SDL_BUTTON_LEFT;
-                e.button.x = keys[next].x * float(w);
-                e.button.y = keys[next].y * float(h);
+                // (An up carries no place of its own in the script, and the
+                // event's is where the pointer is: 0,0 would teleport it into
+                // the corner and off whatever was being dragged.)
+                e.button.x = down ? keys[next].x * float(w) : 0.0f;
+                e.button.y = down ? keys[next].y * float(h) : 0.0f;
+                if (!down)
+                    SDL_GetMouseState(&e.button.x, &e.button.y);
                 e.button.down = down;
                 e.button.clicks = 1;
                 SDL_PushEvent(&e);
@@ -1158,6 +1171,9 @@ namespace ui
         s_frameBuilt = false;
         if (!s_ready)
             return false;
+        // Frames go by for a texture that is being replaced even when nothing
+        // of ours is drawn, and it cannot be freed until they have.
+        deckart::Tick();
         UpdateCursor();  // a menu opened or closed by this frame's events
         // A touch press held back for a three-finger tap goes to ImGui once
         // a second finger can no longer land in time (a finger resting on a
@@ -1242,7 +1258,9 @@ namespace ui
         }
         else
         {
-            if (s_settingsOpen)
+            if (s_settingsOpen && TouchDeckEditing())
+                DrawTouchDeckEditor();
+            else if (s_settingsOpen)
                 DrawSettings();
             else if (perf)
                 DrawPerfOverlay();
@@ -1314,6 +1332,9 @@ namespace ui
     {
         if (!s_settingsOpen)
             return;
+        // The editor is part of the menu: closing it throws the draft away,
+        // exactly as its Cancel does.
+        CloseTouchDeckEditor(false);
         s_settingsOpen = false;
         // A wheel calibration under way ends with the menu (what it kept stays):
         // while it runs the wheel's buttons are its own, chord included.

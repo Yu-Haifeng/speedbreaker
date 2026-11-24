@@ -6,6 +6,7 @@
 
 #include <ui/ui.h>
 #include <user/settings.h>
+#include <user/touch_deck_file.h>
 #include <video/picture_rect.h>
 
 #include <cstdlib>
@@ -181,6 +182,15 @@ namespace hid::touch
     {
         const bool wasActive = s_active;
         s_active = Active();
+        // The size and the canvas are worked out whether or not the deck is in
+        // use: the editor pins one on screen while a menu owns the input, and
+        // lays it out on the same canvas the deck would have had.
+        // Settings > Input > Touch Size: the player's share of the deck's size
+        // (the screen's is the canvas's, see CanvasFromWindow and ScaleFor).
+        s_style.scale = std::clamp(float(settings::GetInt(settings::Id::TouchSize)) / 100.0f, 0.5f, 2.0f);
+        const bool picture = video::GetPictureRect().Valid();
+        if (picture)
+            s_canvas = CanvasFromWindow();
         if (!s_active)
         {
             // Nothing stays held: a menu opened, the deck went off, or there is
@@ -190,20 +200,16 @@ namespace hid::touch
             s_deck = {};
             return;
         }
-        // Settings > Input > Touch Size: the player's share of the deck's size
-        // (the screen's is the canvas's, see CanvasFromWindow and ScaleFor).
-        s_style.scale = std::clamp(float(settings::GetInt(settings::Id::TouchSize)) / 100.0f, 0.5f, 2.0f);
-        if (!video::GetPictureRect().Valid())
+        if (!picture)
         {
             // No picture yet (the game hasn't presented): nothing to sit on.
             Reset();
             s_deck = {};
             return;
         }
-        s_canvas = CanvasFromWindow();
         // The steering panel sits where its thumb last took it (or in the
         // handoff's corner until then), so it comes to the thumb.
-        s_deck = DeckFor(s_canvas, s_state, s_style);
+        s_deck = DeckFor(s_canvas, s_state, s_style, touchdeck::Current().overrides);
         s_sample = SampleOf(s_state);
     }
 

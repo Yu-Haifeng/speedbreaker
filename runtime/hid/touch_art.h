@@ -11,7 +11,9 @@
 // The field is in units of the picture's width: negative inside the
 // silhouette, positive outside, saturated at half a width, and quantised
 // as (d + 0.5) * 255. SdfAt() interpolates it, Inside() compares it with a
-// pad.
+// pad. Info::field points at it: at kSdf here, at a buffer of its own for a
+// picture the player supplied (hid/touch_art_state.h), whose cell is in
+// the second texture Info::sheet names rather than in this atlas.
 #pragma once
 #include <algorithm>
 #include <cstddef>
@@ -42,31 +44,11 @@ namespace hid::touch::art
         float aspect;          // trimmed width / height
         float inradius;        // its widest inscribed circle's radius, in widths
         uint8_t sdfW, sdfH;    // the field's grid
-        uint16_t offset;       // its first byte in kSdf
+        uint8_t sheet;         // 0: the deck's atlas; 1: a picture the player supplied
+        const uint8_t* field;  // its first sample: kSdf, or a loaded picture's own
     };
 
     inline constexpr int kSdfW = 40;
-
-    inline constexpr Info kArt[kCount] = {
-        { 0.005882f, 0.007353f, 0.194118f, 0.242647f, 1.000000f, 0.485412f, 40, 40, 0 },  // AnalogBase
-        { 0.213235f, 0.016544f, 0.386765f, 0.233456f, 1.000000f, 0.485412f, 40, 40, 1600 },  // AnalogStick
-        { 0.423529f, 0.007353f, 0.575735f, 0.242647f, 0.808594f, 0.480885f, 40, 49, 3200 },  // Gas
-        { 0.608824f, 0.010110f, 0.790441f, 0.242647f, 0.976285f, 0.494975f, 40, 41, 5160 },  // Brake
-        { 0.805882f, 0.007353f, 0.994118f, 0.242647f, 1.000000f, 0.482830f, 40, 40, 6800 },  // Handbrake
-        { 0.005882f, 0.257353f, 0.194118f, 0.492647f, 1.000000f, 0.485412f, 40, 40, 8400 },  // Nos
-        { 0.205882f, 0.257353f, 0.394118f, 0.492647f, 1.000000f, 0.485412f, 40, 40, 10000 },  // Speedbreaker
-        { 0.405882f, 0.257353f, 0.594118f, 0.492647f, 1.000000f, 0.482830f, 40, 40, 11600 },  // LookBack
-        { 0.605882f, 0.257353f, 0.794118f, 0.492647f, 1.000000f, 0.485412f, 40, 40, 13200 },  // QuickRearView
-        { 0.805882f, 0.257353f, 0.994118f, 0.492647f, 1.000000f, 0.485412f, 40, 40, 14800 },  // Camera
-        { 0.005882f, 0.507353f, 0.194118f, 0.742647f, 1.000000f, 0.380789f, 40, 40, 16400 },  // GearUp
-        { 0.205882f, 0.507353f, 0.394118f, 0.742647f, 1.000000f, 0.380789f, 40, 40, 18000 },  // GearDown
-        { 0.405882f, 0.507353f, 0.594118f, 0.742647f, 1.000000f, 0.485412f, 40, 40, 19600 },  // Pause
-        { 0.605882f, 0.507353f, 0.794118f, 0.742647f, 1.000000f, 0.485412f, 40, 40, 21200 },  // Reset
-        { 0.805882f, 0.507353f, 0.994118f, 0.742647f, 1.000000f, 0.485412f, 40, 40, 22800 },  // Enter
-        { 0.005882f, 0.757353f, 0.194118f, 0.992647f, 1.000000f, 0.485412f, 40, 40, 24400 },  // List
-        { 0.205882f, 0.757353f, 0.394118f, 0.992647f, 1.000000f, 0.485412f, 40, 40, 26000 },  // Map
-        { 0.405882f, 0.757353f, 0.594118f, 0.992647f, 1.000000f, 0.485412f, 40, 40, 27600 },  // Message
-    };
 
     // 28 KB of signed distance, one byte a sample.
     inline constexpr uint8_t kSdf[] = {
@@ -1295,13 +1277,58 @@ namespace hid::touch::art
         134, 134, 134, 134, 137, 140, 142, 146, 150, 154, 156, 159, 164, 168, 173, 177,
     };
 
+    // The pictures' names: what touch-deck.toml and the icon picker call
+    // them, and what a picture the player supplies is named after.
+    inline constexpr const char* kArtKey[kCount] = {
+        "analog-base",  // AnalogBase
+        "analog-stick",  // AnalogStick
+        "gas",  // Gas
+        "brake",  // Brake
+        "handbrake",  // Handbrake
+        "nos",  // Nos
+        "speedbreaker",  // Speedbreaker
+        "look-back",  // LookBack
+        "quick-rear-view",  // QuickRearView
+        "camera",  // Camera
+        "gear-up",  // GearUp
+        "gear-down",  // GearDown
+        "pause",  // Pause
+        "reset",  // Reset
+        "enter",  // Enter
+        "list",  // List
+        "map",  // Map
+        "message",  // Message
+    };
+
+    // What each picture looks like and where it sits in the atlas.
+    inline constexpr Info kArt[kCount] = {
+        { 0.005882f, 0.007353f, 0.194118f, 0.242647f, 1.000000f, 0.485412f, 40, 40, 0, kSdf + 0 },  // AnalogBase
+        { 0.213235f, 0.016544f, 0.386765f, 0.233456f, 1.000000f, 0.485412f, 40, 40, 0, kSdf + 1600 },  // AnalogStick
+        { 0.423529f, 0.007353f, 0.575735f, 0.242647f, 0.808594f, 0.480885f, 40, 49, 0, kSdf + 3200 },  // Gas
+        { 0.608824f, 0.010110f, 0.790441f, 0.242647f, 0.976285f, 0.494975f, 40, 41, 0, kSdf + 5160 },  // Brake
+        { 0.805882f, 0.007353f, 0.994118f, 0.242647f, 1.000000f, 0.482830f, 40, 40, 0, kSdf + 6800 },  // Handbrake
+        { 0.005882f, 0.257353f, 0.194118f, 0.492647f, 1.000000f, 0.485412f, 40, 40, 0, kSdf + 8400 },  // Nos
+        { 0.205882f, 0.257353f, 0.394118f, 0.492647f, 1.000000f, 0.485412f, 40, 40, 0, kSdf + 10000 },  // Speedbreaker
+        { 0.405882f, 0.257353f, 0.594118f, 0.492647f, 1.000000f, 0.482830f, 40, 40, 0, kSdf + 11600 },  // LookBack
+        { 0.605882f, 0.257353f, 0.794118f, 0.492647f, 1.000000f, 0.485412f, 40, 40, 0, kSdf + 13200 },  // QuickRearView
+        { 0.805882f, 0.257353f, 0.994118f, 0.492647f, 1.000000f, 0.485412f, 40, 40, 0, kSdf + 14800 },  // Camera
+        { 0.005882f, 0.507353f, 0.194118f, 0.742647f, 1.000000f, 0.380789f, 40, 40, 0, kSdf + 16400 },  // GearUp
+        { 0.205882f, 0.507353f, 0.394118f, 0.742647f, 1.000000f, 0.380789f, 40, 40, 0, kSdf + 18000 },  // GearDown
+        { 0.405882f, 0.507353f, 0.594118f, 0.742647f, 1.000000f, 0.485412f, 40, 40, 0, kSdf + 19600 },  // Pause
+        { 0.605882f, 0.507353f, 0.794118f, 0.742647f, 1.000000f, 0.485412f, 40, 40, 0, kSdf + 21200 },  // Reset
+        { 0.805882f, 0.507353f, 0.994118f, 0.742647f, 1.000000f, 0.485412f, 40, 40, 0, kSdf + 22800 },  // Enter
+        { 0.005882f, 0.757353f, 0.194118f, 0.992647f, 1.000000f, 0.485412f, 40, 40, 0, kSdf + 24400 },  // List
+        { 0.205882f, 0.757353f, 0.394118f, 0.992647f, 1.000000f, 0.485412f, 40, 40, 0, kSdf + 26000 },  // Map
+        { 0.405882f, 0.757353f, 0.594118f, 0.992647f, 1.000000f, 0.485412f, 40, 40, 0, kSdf + 27600 },  // Message
+    };
+
     // The signed distance at (x, y), both fractions of the picture's
     // rectangle, in units of its width. Bilinear, and clamped at the
     // rectangle's edge: a point just outside the picture reads as its own
     // edge, which is what a pad is for.
     inline float SdfAt(const Info& info, float x, float y)
     {
-        if (info.sdfW < 2 || info.sdfH < 2)
+        if (!info.field || info.sdfW < 2 || info.sdfH < 2)
             return 0.5f;
         // (A sample sits at the middle of its cell, as the packer's does.)
         const float gx = std::clamp(x * float(info.sdfW) - 0.5f, 0.0f, float(info.sdfW - 1));
@@ -1309,7 +1336,7 @@ namespace hid::touch::art
         const int x0 = int(gx), y0 = int(gy);
         const int x1 = std::min(x0 + 1, int(info.sdfW) - 1), y1 = std::min(y0 + 1, int(info.sdfH) - 1);
         const float fx = gx - float(x0), fy = gy - float(y0);
-        const uint8_t* s = kSdf + info.offset;
+        const uint8_t* s = info.field;
         auto at = [s, &info](int x, int y) {
             return float(s[size_t(y) * info.sdfW + size_t(x)]) / 255.0f - 0.5f;
         };

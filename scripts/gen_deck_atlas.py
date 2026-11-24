@@ -84,6 +84,16 @@ PNG = "runtime/ui/touch/deck_atlas.png"
 HEADER = "runtime/hid/touch_art.h"
 
 
+def kebab(name):
+    """AnalogBase -> analog-base: the name a file and a settings row use."""
+    out = []
+    for index, ch in enumerate(name):
+        if ch.isupper() and index:
+            out.append("-")
+        out.append(ch.lower())
+    return "".join(out)
+
+
 def read_png(path):
     """A PNG as (width, height, 4 channels, text chunks)."""
     d = Path(path).read_bytes()
@@ -402,7 +412,9 @@ def write_header(path, arts):
         "// The field is in units of the picture's width: negative inside the",
         "// silhouette, positive outside, saturated at half a width, and quantised",
         "// as (d + 0.5) * 255. SdfAt() interpolates it, Inside() compares it with a",
-        "// pad.",
+        "// pad. Info::field points at it: at kSdf here, at a buffer of its own for a",
+        "// picture the player supplied (hid/touch_art_state.h), whose cell is in",
+        "// the second texture Info::sheet names rather than in this atlas.",
         "#pragma once",
         "#include <algorithm>",
         "#include <cstddef>",
@@ -434,32 +446,44 @@ def write_header(path, arts):
         "        float aspect;          // trimmed width / height",
         "        float inradius;        // its widest inscribed circle's radius, in widths",
         "        uint8_t sdfW, sdfH;    // the field's grid",
-        "        uint16_t offset;       // its first byte in kSdf",
+        "        uint8_t sheet;         // 0: the deck's atlas; 1: a picture the player supplied",
+        "        const uint8_t* field;  // its first sample: kSdf, or a loaded picture's own",
         "    };",
         "",
         "    inline constexpr int kSdfW = %d;" % SDF_WIDTH,
         "",
-        "    inline constexpr Info kArt[kCount] = {",
     ]
-    offset = 0
-    fields = []
-    for (name, _), (uv, aspect, inradius, sw, sh, field) in zip(ART, arts):
-        lines.append(f"        {{ {uv[0]:.6f}f, {uv[1]:.6f}f, {uv[2]:.6f}f, {uv[3]:.6f}f, {aspect:.6f}f,"
-                     f" {inradius:.6f}f, {sw}, {sh}, {offset} }},  // {name}")
-        fields.append(field)
-        offset += len(field)
+    # kSdf first: kArt's entries point into it.
+    fields = [field for (_, _, _, _, _, field) in arts]
+    total = sum(len(field) for field in fields)
     lines += [
-        "    };",
-        "",
-        f"    // {offset // 1024} KB of signed distance, one byte a sample.",
+        f"    // {total // 1024} KB of signed distance, one byte a sample.",
         "    inline constexpr uint8_t kSdf[] = {",
     ]
-    index = 0
     for field in fields:
         for row in range(0, len(field), 24):
             chunk = ", ".join(str(v) for v in field[row : row + 24])
             lines.append(f"        {chunk},")
-        index += len(field)
+    lines += [
+        "    };",
+        "",
+        "    // The pictures' names: what touch-deck.toml and the icon picker call",
+        "    // them, and what a picture the player supplies is named after.",
+        "    inline constexpr const char* kArtKey[kCount] = {",
+    ]
+    for name, _ in ART:
+        lines.append(f'        "{kebab(name)}",  // {name}')
+    lines += [
+        "    };",
+        "",
+        "    // What each picture looks like and where it sits in the atlas.",
+        "    inline constexpr Info kArt[kCount] = {",
+    ]
+    offset = 0
+    for (name, _), (uv, aspect, inradius, sw, sh, field) in zip(ART, arts):
+        lines.append(f"        {{ {uv[0]:.6f}f, {uv[1]:.6f}f, {uv[2]:.6f}f, {uv[3]:.6f}f, {aspect:.6f}f,"
+                     f" {inradius:.6f}f, {sw}, {sh}, 0, kSdf + {offset} }},  // {name}")
+        offset += len(field)
     lines += [
         "    };",
         "",
@@ -469,7 +493,7 @@ def write_header(path, arts):
         "    // edge, which is what a pad is for.",
         "    inline float SdfAt(const Info& info, float x, float y)",
         "    {",
-        "        if (info.sdfW < 2 || info.sdfH < 2)",
+        "        if (!info.field || info.sdfW < 2 || info.sdfH < 2)",
         "            return 0.5f;",
         "        // (A sample sits at the middle of its cell, as the packer's does.)",
         "        const float gx = std::clamp(x * float(info.sdfW) - 0.5f, 0.0f, float(info.sdfW - 1));",
@@ -477,7 +501,7 @@ def write_header(path, arts):
         "        const int x0 = int(gx), y0 = int(gy);",
         "        const int x1 = std::min(x0 + 1, int(info.sdfW) - 1), y1 = std::min(y0 + 1, int(info.sdfH) - 1);",
         "        const float fx = gx - float(x0), fy = gy - float(y0);",
-        "        const uint8_t* s = kSdf + info.offset;",
+        "        const uint8_t* s = info.field;",
         "        auto at = [s, &info](int x, int y) {",
         "            return float(s[size_t(y) * info.sdfW + size_t(x)]) / 255.0f - 0.5f;",
         "        };",

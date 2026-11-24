@@ -8,6 +8,22 @@ it's built into the game).
 
 ### What's new
 
+- **The touch controls can be arranged**: Settings > Input > Edit Touch Deck opens an editor --
+  drag a control to put it where your thumb wants it, drag its bottom-right corner to size it, and
+  pick its picture from the pop-up. A drag snaps to the nearest line, whether another button's edge
+  or middle or the picture's margin, and otherwise to a grid of half, one or two cqw; one button
+  turns the snapping off and the drag is free. Enter saves, Esc cancels, and nothing is written
+  until you save. It keeps to `touch-deck.toml` beside `settings.toml` (on iPhone and iPad in the
+  app's Documents folder, which the Files app shows), and a picture of your own -- a PNG in
+  `touch-pictures/`, named after the picture it replaces -- is drawn as it is, in its own colours,
+  and pressed where it is drawn, keeping its shape inside its button rather than being stretched.
+  The editor is made to be used with a thumb: a control lifted clear of the finger while it is
+  dragged (with a dashed outline where it will land), a corner handle the size of a fingertip, a
+  change that would put one control on another refused with the control it would land on named and
+  flashed ("RT would overlap LT"), undo for the last change (`U`, Cmd/Ctrl+Z, Y on a pad), a second
+  tap in one place to pick what is stacked under it, arrow keys and the D-pad to nudge by a grid
+  step (or a quarter cqw with the snapping off), a bar along the top that never clips and can be
+  dragged aside, and a tap of the haptics for a refusal, for a line taken and for a new pick.
 - **The on-screen controls are the deck's own art**: each button is the NFS.MW.IOS deck's picture
   (a disc with the glyph of what it does) instead of the drawn plates and icons, and the steering
   is a round stick with an 18 cqw base that comes to your thumb, rather than a horizontal slider,

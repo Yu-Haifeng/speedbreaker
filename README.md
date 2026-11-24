@@ -478,6 +478,23 @@ keeps them with a controller in hand, **Off** hides them. **Touch Size** scales 
 the screen asks for, 75% to 125% is on top of that, and past what the picture's height allows the
 deck stops growing.
 
+**Edit Touch Deck** (Settings > Input) puts the controls in an editor: drag one to put it where
+your thumb wants it, drag its bottom-right corner to size it, and pick its picture from the
+pop-up. On a touch screen the picture lifts clear of your finger while you drag it, and a dashed
+outline stays where it will land; under a mouse it stays put. A drag snaps to the nearest line --
+another button's edge or middle, the picture's margin -- and otherwise to the grid, half, one or
+two cqw apart; `S` (or X on a pad) turns that off and the drag is free, and `S` again turns it
+back on. The arrow keys and the D-pad nudge a control, by one grid step when the snapping is on and
+a quarter of a cqw when it is not; a second tap in the same place picks whatever is stacked under
+the control you have. A change that would put one control on another is not taken, and the editor
+says which one it would land on ("RT would overlap LT"). `U`, Cmd/Ctrl+Z or Y on a pad undoes the
+last change, and the bar's Undo does the same. Enter (or A) saves, Esc (or B) cancels, and nothing
+is written until you do. It goes to `touch-deck.toml` in the data folder, next to `settings.toml`
+-- on iPhone and iPad in the app's own Documents folder, which the Files app shows as On My iPhone
+> SpeedBreaker. A picture of your own goes in `touch-pictures/` there, named after the picture it
+replaces (`gas.png`, `camera.png`, `gear-up.png`...): it is drawn as it is, in its own colours, and
+pressed where it is drawn, keeping its shape rather than being stretched into the button.
+
 On iPhone (and an iPad with a Taptic Engine), the screen's controls vibrate: the game's rumble
 reaches the phone like an Xbox 360 pad's two motors, heavy and low on one side and light and fast
 on the other; each button pressed gives a short tap; and the wheel ticks softly as it crosses
@@ -561,8 +578,9 @@ says whether yours is.
 
 **Input:** Stick Deadzone (8%; raise it if the car steers by itself), Trigger Deadzone (2%),
 Vibration (On; controller rumble, a wheel's force feedback, and on iPhone and iPad the touch
-controls' haptics), and Touch Controls (Auto): Auto shows the on-screen controls where there is a
-touchscreen and no controller; On keeps them with a controller in hand, Off never shows them.
+controls' haptics), Touch Controls (Auto: shows the on-screen controls where there is a touchscreen
+and no controller; On keeps them with a controller in hand, Off never shows them), Touch Size
+(100%), and **Edit Touch Deck**, the editor above.
 
 **Wheel** (experimental; shown while a steering wheel is plugged in): Steering Wheel (On; Off
 lets a controller or the keyboard play while the wheel stays plugged in), Steering Range (360

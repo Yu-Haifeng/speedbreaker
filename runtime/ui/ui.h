@@ -30,6 +30,9 @@
 #include <SDL3/SDL_video.h>
 #include <vulkan/vulkan.h>
 
+#include <hid/touch_input.h>  // DrawDeck: what a deck is drawn from
+#include <hid/touch_layout.h>
+
 struct ImDrawList;  // (ImGui's: the touch deck can be drawn into a panel's own list)
 
 namespace ui
@@ -147,6 +150,33 @@ namespace ui
     // background one when it is null (under every panel), the performance
     // overlay's own so that the deck is drawn after its readout and covers it.
     void DrawTouchOverlay(ImDrawList* list = nullptr);
+    // The deck editor (ui/touch_deck_editor.cpp): Settings > Input's "Edit
+    // Touch Deck" opens it, and while it runs it is drawn instead of the menu
+    // (a sub-state, not a modal: the menu stays open behind it, so the game
+    // stays paused and the system is still told the menu is up). It works on a
+    // copy -- Cancel leaves the deck as it was, Save writes touch-deck.toml.
+    bool TouchDeckEditing();
+    void OpenTouchDeckEditor();
+    void CloseTouchDeckEditor(bool save);
+    void DrawTouchDeckEditor();
+    // The deck itself, from whatever state the caller has: the overlay passes
+    // the live one (hid/touch.h), the editor (ui/touch_deck_editor.cpp) the
+    // arrangement it is editing, and `selected` is the control it is working on
+    // (Control::Count: nothing). It does not ask whether the deck is in use --
+    // the editor pins one on screen while a menu owns the input.
+    // `lifted` is the control the editor has taken hold of on a touch screen: it
+    // is not drawn in place, and its outline is dashed, because the picture of
+    // it is drawn up above the finger by DrawDeckLift instead.
+    void DrawDeck(ImDrawList* list, const hid::touch::Deck& deck, const hid::touch::Sample& sample,
+        const hid::touch::Style& style, const hid::touch::Canvas& canvas, const hid::touch::Overrides& overrides,
+        hid::touch::Control selected, unsigned int accent,  // (ImU32)
+        hid::touch::Control lifted = hid::touch::Control::Count);
+    // A control the editor has taken hold of on a touch screen, drawn above the
+    // finger: the same picture at its own size, its shadow, and its key's
+    // capsule, `offset` points from where it will land.
+    void DrawDeckLift(ImDrawList* list, const hid::touch::Deck& deck, const hid::touch::Style& style,
+        const hid::touch::Canvas& canvas, const hid::touch::Rect& slot, hid::touch::Control control,
+        float offsetX, float offsetY, unsigned int accent);  // (points; ImU32)
     void ResetSettingsMenu();  // on opening: focus the first row, no dialog left open
     // Main thread, from ProcessEvent on a key-down or key-up while the menu
     // is open, after the F1 toggle: true when a Controls row was waiting

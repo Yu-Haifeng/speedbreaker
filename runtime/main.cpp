@@ -33,6 +33,7 @@
 #include <update/updater.h>  // the startup check: --after-update, NoteWindowUp
 #include <user/paths.h>
 #include <user/settings.h>
+#include <user/touch_deck_file.h>
 #include <user/version_check.h>
 #include <game/language.h>
 
@@ -466,6 +467,9 @@ int main(int argc, char** argv)
 #endif
     SetReleaseDefaults(argc, argv);
     bool settingsLoaded = settings::Load();
+    // The player's own deck (user/touch_deck_file.h): before there is a window,
+    // and before the touch layer lays anything out.
+    touchdeck::Current().Load();
     hfr::Init();  // Smooth Motion, for this run
     // Which version ran last: a line in the log (so a bug report shows when a
     // problem began), the "What's new" note below, and this version recorded

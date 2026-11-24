@@ -695,7 +695,14 @@ namespace
     // is the master switch, as for a pad's motors.
     void UpdateTouchHaptics(uint16_t low, uint16_t high, bool vibration, bool onWheel)
     {
-        const bool wanted = vibration && hid::touch::Active() && !s_gamepad && !onWheel;
+        // The editor (ui/touch_deck_editor.cpp) plays its own taps while the
+        // settings menu owns the input -- refusals, lines taken, a control
+        // picked -- so the engine is kept running there too. The game's rumble
+        // is not, though: the game is paused behind the menu, and its last
+        // motor values would sit on the engine as a permanent buzz.
+        const bool deck = hid::touch::Active();
+        const bool editing = ui::TouchDeckEditing();
+        const bool wanted = vibration && (deck || editing) && !s_gamepad && !onWheel;
         const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
         const float dt = s_hapticLastTime > 0.0 ? float(std::clamp(now - s_hapticLastTime, 0.0, 0.25)) : 0.0f;
         s_hapticLastTime = now;
@@ -724,15 +731,25 @@ namespace
         if (!running)
             return;
 
-        platform::haptics::Rumble(hid::haptic::GameRumble(low, high));
+        // (The deck's own rumble and cues only: while the editor runs there is
+        // no deck under the fingers, only the editor's taps.)
+        if (deck)
+        {
+            platform::haptics::Rumble(hid::haptic::GameRumble(low, high));
 
-        const hid::haptic::Cues cues = s_touchFeedback.Step(hid::touch::Snapshot(), dt);
-        if (cues.TapCount())
-            platform::haptics::Tap(hid::haptic::kButtonTap);
-        if (cues.centre)
-            platform::haptics::Tap(hid::haptic::kCentreDetent);
-        if (cues.fullLock)
-            platform::haptics::Tap(hid::haptic::kLockDetent);
+            const hid::haptic::Cues cues = s_touchFeedback.Step(hid::touch::Snapshot(), dt);
+            if (cues.TapCount())
+                platform::haptics::Tap(hid::haptic::kButtonTap);
+            if (cues.centre)
+                platform::haptics::Tap(hid::haptic::kCentreDetent);
+            if (cues.fullLock)
+                platform::haptics::Tap(hid::haptic::kLockDetent);
+        }
+        else
+        {
+            platform::haptics::Rumble({});
+            s_touchFeedback.Reset();
+        }
     }
 
     // A controller may be player 1's: not a wheel's (one device, one owner:

@@ -279,13 +279,16 @@ static void Specs()
         CHECK(spec.control == Control(i), "spec %zu is control %zu", i, size_t(spec.control));
         CHECK(size_t(spec.art) < art::kCount, "spec %zu has a picture", i);
         CHECK((spec.key != nullptr) == (spec.keyFace != KeyFace::None), "spec %zu: a name has a colour", i);
-        CHECK(spec.drawScale > 0.5f && spec.drawScale <= 1.0f, "spec %zu: a sane draw scale", i);
+        // (A picture's draw scale belongs to the picture, not the control.)
+        CHECK(kDrawScale[size_t(spec.art)] > 0.5f && kDrawScale[size_t(spec.art)] <= 1.0f,
+            "spec %zu: a sane draw scale", i);
         const art::Info& info = art::kArt[size_t(spec.art)];
         CHECK(info.u0 < info.u1 && info.v0 < info.v1, "picture %zu: its cell is not empty", i);
         CHECK(info.aspect > 0.2f && info.aspect < 5.0f, "picture %zu: an aspect", i);
         CHECK(info.sdfW >= 2 && info.sdfH >= 2, "picture %zu: a distance field", i);
-        CHECK(size_t(info.offset) + size_t(info.sdfW) * size_t(info.sdfH) <= std::size(art::kSdf),
-            "picture %zu: its field is inside kSdf", i);
+        CHECK(info.sheet == 0, "picture %zu: the deck's own atlas", i);
+        CHECK(info.field >= art::kSdf && size_t(info.field - art::kSdf) + size_t(info.sdfW) * size_t(info.sdfH) <=
+                std::size(art::kSdf), "picture %zu: its field is inside kSdf", i);
     }
     // A key's capsule sits on the picture's own edge, up and to the right of
     // its middle -- where the field says the edge is.
@@ -416,6 +419,212 @@ static void Screens()
     CHECK(small.Factor(phone) < phoneFactor, "a smaller setting still makes the deck smaller on a phone (%.3f)",
         small.Factor(phone));
     Near(small.Factor(reference), 0.75f, "and on the design's screen it is just the setting");
+}
+
+// The player's own arrangement: an offset in cqw from where the layout would
+// have put each control, scaled with the deck, and clamped to the canvas.
+static void Placements()
+{
+    const Canvas canvas = CanvasFor(kW / kH);
+    const Deck plain = Layout(canvas);
+    const Deck untouched = Layout(canvas, Style{}, Overrides{});
+    bool identical = true;
+    for (size_t i = 0; i < kControls; i++)
+    {
+        const Rect a = plain.Of(Control(i)), b = untouched.Of(Control(i));
+        identical = identical && a.x == b.x && a.y == b.y && a.w == b.w && a.h == b.h &&
+            plain.padCqw[i] == untouched.padCqw[i] && plain.steerGrab.x == untouched.steerGrab.x;
+    }
+    CHECK(identical, "no placements: the deck is the design's, to the bit");
+    CHECK(!Overrides{}.Any(), "an empty set changes nothing");
+
+    // 2 cqw right and 1 up, on the design's screen, is 18 and 9 pixels.
+    Overrides overrides;
+    overrides.of[size_t(Control::Nitro)].dx = 2.0f;
+    overrides.of[size_t(Control::Nitro)].dy = -1.0f;
+    CHECK(overrides.Any(), "a moved control is a change");
+    const Deck moved = Layout(canvas, Style{}, overrides);
+    RectNear(moved.nitro, plain.nitro.x * kW + 18.0f, plain.nitro.y * kH - 9.0f, plain.nitro.w * kW,
+        plain.nitro.h * kH, "2 and -1 cqw away");
+    CHECK(moved.padCqw[size_t(Control::Nitro)] <= plain.padCqw[size_t(Control::Nitro)],
+        "and its touch area gives way to its new neighbours");
+
+    // The offset is in the deck's own cqw, so it grows with the buttons: on a
+    // small picture (where a cqw is worth less than the design's) 2 cqw of
+    // offset is 2 cqw of a bigger deck, not of a bigger screen.
+    Canvas small = CanvasFor(kW / kH);
+    small.pointsPerCqw = 8.0f;
+    const float factor = Style{}.Factor(small);
+    CHECK(factor > 1.0f, "a small picture grows the deck (%.3f)", factor);
+    const Deck grown = Layout(small, Style{}, overrides), grownPlain = Layout(small);
+    Near((grown.nitro.x - grownPlain.nitro.x) / small.uPerCqw, 2.0f * factor, "the offset scales with the deck");
+    Near((grownPlain.nitro.y - grown.nitro.y) / small.vPerCqw, 1.0f * factor, "both ways");
+
+    // A control scaled about its centre keeps the centre and takes the size.
+    Overrides bigger;
+    bigger.of[size_t(Control::Camera)].scale = 1.5f;
+    const Deck scaled = Layout(canvas, Style{}, bigger);
+    Near(scaled.camera.w * kW, plain.camera.w * kW * 1.5f, "1.5 times as wide");
+    Near(scaled.camera.CentreX(), plain.camera.CentreX(), "about its own centre");
+    Near(scaled.camera.CentreY() / kH, plain.camera.CentreY() / kH, "and its own middle");
+
+    // Nothing leaves the canvas, and nothing is bigger than it: the whole
+    // rectangle is pulled back inside the margins, not its centre.
+    Overrides far;
+    far.of[size_t(Control::Start)].dx = 500.0f;
+    far.of[size_t(Control::Start)].dy = -500.0f;
+    far.of[size_t(Control::Camera)].scale = 40.0f;
+    const Deck clamped = Layout(canvas, Style{}, far);
+    CHECK(clamped.start.Right() <= (1.0f - canvas.right * canvas.uPerCqw) + 1e-5f, "a control pushed right stays in");
+    CHECK(clamped.start.y >= canvas.top * canvas.vPerCqw - 1e-5f, "and one pushed up");
+    CHECK(clamped.camera.w <= (1.0f - canvas.left * canvas.uPerCqw - canvas.right * canvas.uPerCqw) + 1e-5f,
+        "a control made enormous is cut down to the canvas");
+
+    // The stick: moved, it is still one piece -- the knob in the base, the
+    // travel the base's own width, and the thumb's reach around it rather than
+    // the screen's bottom left.
+    Overrides stick;
+    stick.of[size_t(Control::Steer)].dx = 40.0f;
+    stick.of[size_t(Control::Steer)].dy = -10.0f;
+    const Deck moved_steer = Layout(canvas, Style{}, stick);
+    Near(moved_steer.steerStick.CentreX(), moved_steer.steer.CentreX(), "the knob stays in the base");
+    Near(moved_steer.steerStick.CentreY(), moved_steer.steer.CentreY(), "and level with it");
+    Near(moved_steer.steerTravel, (moved_steer.steer.w / canvas.uPerCqw - Style{}.stickKnob) * 0.5f * canvas.uPerCqw,
+        "and travels the base's own reach");
+    CHECK(moved_steer.steerGrab.Contains(moved_steer.steer.CentreX(), moved_steer.steer.CentreY()),
+        "a placed stick is taken from where it is");
+    CHECK(HitTest(moved_steer, moved_steer.steer.CentreX(), moved_steer.steer.CentreY()) == Control::Steer,
+        "and presses from its middle");
+
+    // Rectangles back to offsets: what the editor drags to is what the file keeps.
+    Placement back;
+    Placed(back, moved.nitro, plain.nitro, canvas, Style{});
+    Near(back.dx, 2.0f, "a dragged rectangle gives its offset back");
+    Near(back.dy, -1.0f, "both ways");
+    Near(back.scale, 1.0f, "and its size");
+    Placement rounded = bigger.of[size_t(Control::Camera)];
+    ClampPlacement(plain.camera, canvas, Style{}, rounded);
+    Near(rounded.scale, 1.5f, "clamping leaves a placement the canvas can hold alone");
+
+    // Crossing, not touching: the D-pad's cells share their edges.
+    CHECK(!Overlaps(plain, Control::DpadUp), "a D-pad cell does not cross its neighbours");
+    Overrides collide;
+    collide.of[size_t(Control::Nitro)].dx = plain.camera.CentreX() / canvas.uPerCqw - plain.nitro.CentreX() / canvas.uPerCqw;
+    collide.of[size_t(Control::Nitro)].dy = plain.camera.CentreY() / canvas.vPerCqw - plain.nitro.CentreY() / canvas.vPerCqw;
+    CHECK(Overlaps(Layout(canvas, Style{}, collide), Control::Nitro), "one control put on another does");
+
+    // A picture of another shape than its slot keeps its shape in the slot, and
+    // it is the picture that is pressed, not the empty room around it.
+    art::Info wide = art::kArt[size_t(art::Id::Camera)];
+    wide.aspect = 2.0f;
+    wide.inradius = 0.5f;
+    wide.sheet = 1;
+    const uint8_t inside[4] = { 0, 0, 0, 0 };  // (all of it, and no pad)
+    art::Install(art::Id::Camera, wide, std::vector<uint8_t>(inside, inside + 4));
+    const art::Info& installed = art::InfoOf(art::Id::Camera);
+    const Rect slot = plain.camera;
+    const Rect fitted = Fitted(slot, installed, canvas.uPerCqw, canvas.vPerCqw);
+    Near(fitted.w, slot.w, "a wide picture keeps the slot's width");
+    Near(fitted.h, slot.h * 0.5f, "and takes half its height");
+    CHECK(fitted.y > slot.y, "centred, so the room is above and below");
+    Near(installed.aspect, Fitted(slot, installed, canvas.uPerCqw, canvas.vPerCqw).w * kW /
+            (Fitted(slot, installed, canvas.uPerCqw, canvas.vPerCqw).h * kH), "its own shape");
+    // (A style with no minimum touch: otherwise the pad a control reaches with
+    // covers the picture's letterboxing, which is the point of the pad.)
+    Style noPad;
+    noPad.minTouch = 0.0f;
+    const Deck tight = Layout(canvas, noPad);
+    CHECK(HitTest(tight, slot.CentreX(), slot.CentreY()) == Control::Camera, "its middle presses it");
+    CHECK(HitTest(tight, slot.CentreX(), slot.y + slot.h * 0.05f) != Control::Camera,
+        "the slot's empty top is not the picture");
+    CHECK(HitTest(tight, slot.CentreX(), slot.y + slot.h * 0.28f) == Control::Camera, "the picture's top is");
+    CHECK(Fitted(slot, art::kArt[size_t(art::Id::Camera)], canvas.uPerCqw, canvas.vPerCqw).x == slot.x,
+        "a bundled picture is its slot, to the bit");
+    art::Restore(art::Id::Camera);
+    CHECK(art::InfoOf(art::Id::Camera).field == art::kArt[size_t(art::Id::Camera)].field, "and its own is back");
+}
+
+// The editor's snapping: the nearest line, whether grid or neighbour, and
+// nothing at all when it is off.
+static void Snapping()
+{
+    const Canvas canvas = CanvasFor(kW / kH);  // (no points: a magnet of 1.2 cqw)
+    const float u = canvas.uPerCqw, v = canvas.vPerCqw;
+    const auto at = [u, v](float x, float y, float w, float h) { return Rect{ x * u, y * v, w * u, h * v }; };
+    const auto cqw = [u, v](const Rect& r) {
+        return Rect{ r.x / u, r.y / v, r.w / u, r.h / v };
+    };
+
+    const Grid grid;  // on, 1 cqw
+    // 4.05 is 0.05 from the grid's 4 -- nearer than the rectangle's middle or
+    // its far edge are to theirs (a 4.7 width keeps them off the lines).
+    Snap across, down;
+    const Rect snapped = Snapped(at(4.05f, 10.95f, 4.7f, 4.7f), canvas, grid, nullptr, 0, nullptr, 0, &across, &down);
+    Near(cqw(snapped).x, 4.0f, "a left edge 0.05 from a grid line lands on it");
+    Near(cqw(snapped).y, 11.0f, "and a top edge 0.05 below one");
+    CHECK(!across.guide && across.moved, "the grid, and it moved");
+    Near(cqw(snapped).w, 4.7f, "a snapped control keeps its size");
+
+    // An edge's middle counts too: 3.6 + 2.5 = 6.1, which is 0.1 from 6 -- and
+    // nearer than either edge is to its own line.
+    const Rect middle = Snapped(at(3.6f, 20.0f, 5.0f, 5.0f), canvas, grid, nullptr, 0, nullptr, 0);
+    Near(cqw(middle).x, 3.5f, "the middle lands on the line when it is the nearest");
+
+    // A neighbour's edge beats the grid when it is nearer, and the grid wins
+    // when it is nearer than that.
+    // (4.3 with a 4.3 width: the left edge is 0.3 from the grid's 4, and the
+    // middle and far edge are further from theirs.)
+    const float neighbour[1] = { 4.55f };
+    Snap guide;
+    const Rect toNeighbour = Snapped(at(4.3f, 30.0f, 4.3f, 4.3f), canvas, grid, neighbour, 1, nullptr, 0, &guide);
+    Near(cqw(toNeighbour).x, 4.55f, "0.25 from a neighbour is followed, not the grid's 0.3");
+    CHECK(guide.guide, "and it is a guide");
+    const float nearish[1] = { 4.7f };
+    Snap noGuide;
+    const Rect toGrid = Snapped(at(4.3f, 30.0f, 4.3f, 4.3f), canvas, grid, nearish, 1, nullptr, 0, &noGuide);
+    Near(cqw(toGrid).x, 4.0f, "0.3 from the grid beats 0.4 from a neighbour");
+    CHECK(!noGuide.guide, "so no guide");
+
+    // A line further than the magnet is not a line: 2.3 cqw away.
+    const float tooFar[1] = { 2.0f };
+    Snap ignored;
+    const Rect magnet = Snapped(at(4.3f, 40.0f, 4.3f, 4.3f), canvas, grid, tooFar, 1, nullptr, 0, &ignored);
+    Near(cqw(magnet).x, 4.0f, "beyond the magnet only the grid is left");
+    CHECK(!ignored.guide, "no guide");
+
+    // The magnet is a fingertip's width in points: a cqw worth 12 points makes
+    // it one, so a line 1.1 cqw away is out of reach.
+    Canvas points = canvas;
+    points.pointsPerCqw = 12.0f;
+    const float near[1] = { 5.4f };
+    Snap outOfReach;
+    const Rect tipped = Snapped(at(4.3f, 50.0f, 4.3f, 4.3f), points, grid, near, 1, nullptr, 0, &outOfReach);
+    Near(tipped.x / points.uPerCqw, 4.0f, "1.1 cqw is out of a 12 point reach");
+    CHECK(!outOfReach.guide, "so the grid again");
+
+    // Off is off: the rectangle is the one it was given.
+    Grid off;
+    off.snap = false;
+    const Rect free = Snapped(at(4.3f, 60.0f, 4.3f, 4.3f), canvas, off, neighbour, 1, nullptr, 0);
+    Near(cqw(free).x, 4.3f, "snapping off leaves the drag alone");
+    Near(cqw(free).y, 60.0f, "both ways");
+
+    // A pitch of nothing is no grid, and a neighbour is still a line.
+    Grid none;
+    none.pitch = 0.0f;
+    Snap onlyGuide;
+    const Rect guidesOnly = Snapped(at(4.3f, 70.0f, 4.3f, 4.3f), canvas, none, neighbour, 1, nullptr, 0, &onlyGuide);
+    Near(cqw(guidesOnly).x, 4.55f, "no grid, but the neighbour is still followed");
+    CHECK(onlyGuide.guide, "as a guide");
+
+    // The deck's own lines, as the editor collects them: three a neighbour.
+    float lines[3 * (kControls - 1)];
+    const size_t count = NeighbourLines(Layout(canvas), Control::Nitro, true, lines, std::size(lines));
+    CHECK(count == 3 * (kControls - 1), "three lines for each of the other controls (%zu)", count);
+    bool hasLeft = false;
+    for (size_t i = 0; i < count; i++)
+        hasLeft = hasLeft || std::fabs(lines[i] - 2.65f) < 1e-4f;
+    CHECK(hasLeft, "and a neighbour's edge among them");
 }
 
 // A point inside a control, as the canvas fraction (fx, fy) of it takes.
@@ -765,6 +974,8 @@ int main(int argc, char** argv)
     Specs();
     Styles();
     Screens();
+    Placements();
+    Snapping();
     HitTesting();
     Steering();
     StateMachine();

@@ -41,7 +41,9 @@
 #include <cstdint>
 
 #include <hid/touch_art.h>
+#include <hid/touch_art_state.h>
 #include <hid/touch_control.h>
+#include <hid/touch_deck.h>
 #include <hid/touch_spec.h>
 
 namespace hid::touch
@@ -291,18 +293,308 @@ namespace hid::touch
         return { (canvas.left + half) * canvas.uPerCqw, (heightCqw - canvas.bottom - half) * canvas.vPerCqw };
     }
 
-    // (The two-argument form is below.)
-    inline Deck Layout(const Canvas& canvas, Point centre, const Style& style = Style{});
-
-    // The deck on this canvas, with the stick in the handoff's corner.
-    inline Deck Layout(const Canvas& canvas, const Style& style = Style{})
+    // The picture's own rectangle inside the slot the layout gave it: centred,
+    // at its own aspect. A picture whose aspect is its slot's is the slot
+    // itself -- which is every bundled picture in its own slot, so nothing
+    // moves for them -- while a player's 2:1 picture in a face button's square
+    // slot keeps its shape and leaves the rest of the slot empty rather than
+    // being stretched into it.
+    inline Rect Fitted(const Rect& slot, const art::Info& info, float uPerCqw, float vPerCqw)
     {
-        return Layout(canvas, SteerHomeCentre(canvas, style), style);
+        if (slot.w <= 0.0f || slot.h <= 0.0f || info.aspect <= 0.0f || uPerCqw <= 0.0f || vPerCqw <= 0.0f)
+            return slot;
+        const float width = slot.w / uPerCqw, height = slot.h / vPerCqw;
+        if (height <= 0.0f)
+            return slot;
+        const float slotAspect = width / height;
+        // (The layout builds a slot from an art's aspect, so the two agree to
+        // within a rounding error: treat them as the same and leave it be.)
+        constexpr float kSame = 1e-4f;
+        if (info.aspect > slotAspect * (1.0f + kSame))
+        {
+            const float h = width / info.aspect;
+            return { slot.x, slot.y + (slot.h - h * vPerCqw) * 0.5f, slot.w, h * vPerCqw };
+        }
+        if (info.aspect < slotAspect * (1.0f - kSame))
+        {
+            const float w = height * info.aspect;
+            return { slot.x + (slot.w - w * uPerCqw) * 0.5f, slot.y, w * uPerCqw, slot.h };
+        }
+        return slot;
     }
 
-    // The deck with the stick's base centred on `centre`, kept inside the
-    // canvas's margins. Every size is the style's; only the stick moves.
-    inline Deck Layout(const Canvas& canvas, Point centre, const Style& style)
+    // A control's rectangle at its placement's size, before the placement's
+    // offset: scaled about the slot's centre.
+    inline Rect SlotOf(const Rect& base, float scale)
+    {
+        if (scale == 1.0f)
+            return base;
+        const float w = base.w * scale, h = base.h * scale;
+        return { base.CentreX() - w * 0.5f, base.CentreY() - h * 0.5f, w, h };
+    }
+
+    // What the layout would make of a placement: its size, then its offset (in
+    // cqw, times the deck's own factor -- so a control moved on a phone moves
+    // with the buttons when they grow).
+    inline Rect Moved(const Rect& base, const Placement& placement, const Canvas& canvas, const Style& style)
+    {
+        const Rect slot = SlotOf(base, placement.scale);
+        const float factor = style.Factor(canvas);
+        return { slot.x + placement.dx * factor * canvas.uPerCqw, slot.y + placement.dy * factor * canvas.vPerCqw,
+            slot.w, slot.h };
+    }
+
+    // A rectangle the canvas can hold: moved inside the margins whole (not its
+    // centre, which would let a corner hang out), and shrunk if it is wider
+    // than the room there is.
+    inline Rect ClampedToCanvas(Rect r, const Canvas& canvas)
+    {
+        const float minX = canvas.left * canvas.uPerCqw, maxX = 1.0f - canvas.right * canvas.uPerCqw;
+        const float minY = canvas.top * canvas.vPerCqw, maxY = 1.0f - canvas.bottom * canvas.vPerCqw;
+        if (maxX <= minX || maxY <= minY)
+            return r;  // (a canvas that cannot hold anything: leave it be)
+        r.w = std::min(r.w, maxX - minX);
+        r.h = std::min(r.h, maxY - minY);
+        r.x = std::clamp(r.x, minX, maxX - r.w);
+        r.y = std::clamp(r.y, minY, maxY - r.h);
+        return r;
+    }
+
+    // The placement that puts a control where `want` is -- the inverse of
+    // Moved(): its size from the width, its offset from the corner. (The
+    // editor works in rectangles; the file keeps offsets.)
+    inline void Placed(Placement& placement, const Rect& want, const Rect& base, const Canvas& canvas, const Style& style)
+    {
+        if (base.w <= 0.0f || base.h <= 0.0f || canvas.uPerCqw <= 0.0f || canvas.vPerCqw <= 0.0f)
+            return;
+        const float factor = style.Factor(canvas);
+        if (factor <= 0.0f)
+            return;
+        placement.scale = want.w / base.w;
+        const Rect slot = SlotOf(base, placement.scale);
+        placement.dx = (want.x - slot.x) / (factor * canvas.uPerCqw);
+        placement.dy = (want.y - slot.y) / (factor * canvas.vPerCqw);
+    }
+
+    // A placement the canvas can hold, size and all.
+    inline void ClampPlacement(const Rect& base, const Canvas& canvas, const Style& style, Placement& placement)
+    {
+        placement.scale = std::clamp(placement.scale, kMinPlacement, kMaxPlacement);
+        Placed(placement, ClampedToCanvas(Moved(base, placement, canvas, style), canvas), base, canvas, style);
+        placement.scale = std::clamp(placement.scale, kMinPlacement, kMaxPlacement);
+    }
+
+    // One axis of a drag: the three anchors of the rectangle being moved (its
+    // near edge, its middle, its far edge), the lines it can follow, and how
+    // near a line has to be to take it.
+    struct SnapAxis
+    {
+        float lo = 0.0f, mid = 0.0f, hi = 0.0f;  // cqw
+        float pitch = 0.0f;                       // cqw; 0: no grid
+        const float* lines = nullptr;             // other controls and the canvas, cqw
+        size_t count = 0;
+        float magnet = 0.0f;                      // cqw
+    };
+
+    struct Snap
+    {
+        float delta = 0.0f;  // cqw to add to the rectangle's coordinate
+        bool guide = false;  // (a line a neighbour or the canvas offers, not the grid)
+        bool moved = false;
+        float line = 0.0f;   // where that line is, cqw (the editor draws it)
+    };
+
+    // The nearest line of all: a neighbour's edge or middle, a canvas margin,
+    // or the grid -- whichever is closest, with a guide winning a tie. The
+    // grid needs no threshold (it is a grid: half a pitch at most, always), so
+    // a guide only takes over when it is nearer than that.
+    inline Snap SnapTo(const SnapAxis& axis)
+    {
+        Snap best;
+        const auto consider = [&best](float delta, bool guide, float anchor) {
+            const float distance = std::fabs(delta);
+            if (!best.moved || distance < std::fabs(best.delta) - 1e-6f ||
+                (distance <= std::fabs(best.delta) + 1e-6f && guide && !best.guide))
+                best = { delta, guide, true, anchor + delta };
+        };
+        const float anchors[3] = { axis.lo, axis.mid, axis.hi };
+        for (const float anchor : anchors)
+        {
+            for (size_t i = 0; i < axis.count; i++)
+            {
+                const float delta = axis.lines[i] - anchor;
+                if (std::fabs(delta) <= axis.magnet)
+                    consider(delta, true, anchor);
+            }
+            if (axis.pitch > 0.0f)
+                consider(std::round(anchor / axis.pitch) * axis.pitch - anchor, false, anchor);
+        }
+        return best;
+    }
+
+    // How near a line has to come, in points: twelve is a fingertip's width
+    // where 1 cqw is 12.8 (the design's own screen). A canvas that has not said
+    // what a cqw is worth keeps a cqw of its own.
+    constexpr float kMagnetPoints = 12.0f;
+
+    // How near a line has to come for a drag to follow it, in cqw: a
+    // fingertip's width where the canvas says what a cqw is worth.
+    inline float MagnetCqw(const Canvas& canvas, const Grid& grid)
+    {
+        if (!grid.snap)
+            return 0.0f;
+        return canvas.pointsPerCqw > 0.0f ? kMagnetPoints / canvas.pointsPerCqw : 1.2f;
+    }
+
+    // A moved rectangle, snapped: its near edge, middle or far edge onto the
+    // nearest line a neighbour, a canvas margin or the grid offers. `lines*` are
+    // in cqw; the result is in canvas fractions, the size untouched.
+    inline Rect Snapped(const Rect& want, const Canvas& canvas, const Grid& grid, const float* linesX, size_t countX,
+        const float* linesY, size_t countY, Snap* across = nullptr, Snap* down = nullptr)
+    {
+        Snap sx, sy;
+        if (grid.snap && canvas.uPerCqw > 0.0f && canvas.vPerCqw > 0.0f)
+        {
+            const float u = canvas.uPerCqw, v = canvas.vPerCqw;
+            const float x = want.x / u, y = want.y / v, w = want.w / u, h = want.h / v;
+            const float magnet = MagnetCqw(canvas, grid);
+            sx = SnapTo({ x, x + w * 0.5f, x + w, grid.pitch, linesX, countX, magnet });
+            sy = SnapTo({ y, y + h * 0.5f, y + h, grid.pitch, linesY, countY, magnet });
+        }
+        if (across)
+            *across = sx;
+        if (down)
+            *down = sy;
+        return { want.x + sx.delta * canvas.uPerCqw, want.y + sy.delta * canvas.vPerCqw, want.w, want.h };
+    }
+
+    // The lines a control's neighbours offer an axis: their near edge, middle
+    // and far edge, in cqw, for ui/touch_deck_editor.cpp to hand to Snapped().
+    // `into` holds three per other control.
+    inline size_t NeighbourLines(const Deck& deck, Control self, bool across, float* into, size_t room)
+    {
+        size_t count = 0;
+        for (size_t i = 0; i < kControls && count + 3 <= room; i++)
+        {
+            const Control other = Control(i);
+            if (other == self)
+                continue;
+            const Rect r = deck.Of(other);
+            if (r.w <= 0.0f || r.h <= 0.0f)
+                continue;
+            const float per = across ? deck.uPerCqw : deck.vPerCqw;
+            if (per <= 0.0f)
+                continue;
+            into[count++] = (across ? r.x : r.y) / per;
+            into[count++] = (across ? r.CentreX() : r.CentreY()) / per;
+            into[count++] = (across ? r.Right() : r.Bottom()) / per;
+        }
+        return count;
+    }
+
+    // The deck with the player's placements applied, before the touch pads are
+    // worked out (so a moved control's pad is its own, and its neighbours'
+    // close in on it). Untouched controls are left exactly as the layout made
+    // them: the same rectangle, to the bit.
+    inline void ApplyOverrides(Deck& deck, const Canvas& canvas, const Style& style, const Overrides& overrides)
+    {
+        if (!overrides.Any())
+            return;
+        const float u = deck.uPerCqw, v = deck.vPerCqw;
+        for (size_t i = 0; i < kControls; i++)
+        {
+            const Placement& placement = overrides.of[i];
+            if (placement.dx == 0.0f && placement.dy == 0.0f && placement.scale == 1.0f)
+                continue;
+            const Control control = Control(i);
+            Rect& r = deck.*kRectOf[i];
+            if (r.w <= 0.0f || r.h <= 0.0f)
+                continue;
+            r = ClampedToCanvas(Moved(r, placement, canvas, style), canvas);
+            if (control != Control::Steer)
+                continue;
+            // The stick keeps its place inside the base, travels as far as the
+            // base now lets it, and -- because a stick the player has put
+            // somewhere should stay there -- is taken from around itself rather
+            // than from the screen's bottom left.
+            const float side = style.Size(SizeClass::Stick, canvas) * placement.scale;
+            deck.steerStick = { r.CentreX() - side * 0.5f * u, r.CentreY() - side * 0.5f * v, side * u, side * v };
+            deck.steerTravel = (r.w / u - side) * 0.5f * u;
+            const float reach = r.w * 0.5f;
+            deck.steerGrab = ClampedToCanvas({ r.x - reach, r.y - reach, r.w + 2.0f * reach, r.h + 2.0f * reach }, canvas);
+        }
+    }
+
+    // Does this control's rectangle cross another's? Touching is not crossing:
+    // the D-pad's cells share their edges, and so do the gear rings. Rectangles,
+    // not silhouettes, because that is what the pads' gaps are measured in.
+    // The first control whose rectangle crosses this one's, in Control's order;
+    // Count when nothing does. (The editor names it: "RT would overlap Y".)
+    inline Control OverlapWith(const Deck& deck, Control control)
+    {
+        const Rect a = deck.Of(control);
+        if (a.w <= 0.0f || a.h <= 0.0f)
+            return Control::Count;
+        constexpr float kSlack = 1e-4f;
+        for (size_t j = 0; j < kControls; j++)
+        {
+            if (Control(j) == control)
+                continue;
+            const Rect b = deck.Of(Control(j));
+            if (b.w <= 0.0f || b.h <= 0.0f)
+                continue;
+            if (a.Right() > b.x + kSlack && b.Right() > a.x + kSlack && a.Bottom() > b.y + kSlack &&
+                b.Bottom() > a.y + kSlack)
+                return Control(j);
+        }
+        return Control::Count;
+    }
+
+    inline bool Overlaps(const Deck& deck, Control control)
+    {
+        return OverlapWith(deck, control) != Control::Count;
+    }
+
+    // `r` about its centre, `scale` of its size (a held control's press, and a
+    // picture's own share of its slot).
+    inline Rect ScaledRect(const Rect& r, float scale)
+    {
+        if (scale == 1.0f)
+            return r;
+        const float w = r.w * scale, h = r.h * scale;
+        return { r.x + (r.w - w) * 0.5f, r.y + (r.h - h) * 0.5f, w, h };
+    }
+
+    // The rectangle a control's picture is actually drawn in: its slot, the
+    // picture fitted inside it, then the picture's own draw scale (the gears
+    // are rings whose teeth reach the edge of their art, so they are drawn a
+    // little smaller than the discs beside them). Drawing, the selection's
+    // handle and the editor's grab of that handle all go through this, so what
+    // is drawn is what is pressed.
+    inline Rect DrawnOf(const Deck& deck, Control control)
+    {
+        const Rect slot = deck.Of(control);
+        if (slot.w <= 0.0f || slot.h <= 0.0f)
+            return slot;
+        const art::Id id = art::ArtOf(control);
+        const Rect fit = Fitted(slot, art::InfoOf(id), deck.uPerCqw, deck.vPerCqw);
+        return ScaledRect(fit, kDrawScale[size_t(id)]);
+    }
+
+    // (The two-argument form is below.)
+    inline Deck Layout(const Canvas& canvas, Point centre, const Style& style = Style{},
+        const Overrides& overrides = Overrides{});
+
+    // The deck on this canvas, with the stick in the handoff's corner.
+    inline Deck Layout(const Canvas& canvas, const Style& style = Style{}, const Overrides& overrides = Overrides{})
+    {
+        return Layout(canvas, SteerHomeCentre(canvas, style), style, overrides);
+    }
+
+    // The deck with the stick's base centred on `centre` and the player's
+    // placements applied, all kept inside the canvas's margins. Every size is
+    // the style's; only the stick and what the player moved, move.
+    inline Deck Layout(const Canvas& canvas, Point centre, const Style& style, const Overrides& overrides)
     {
         Deck d;
         d.uPerCqw = canvas.uPerCqw;
@@ -324,9 +616,9 @@ namespace hid::touch
         // A pedal: this wide, and as tall as its own picture is for that width,
         // standing on `bottomCqw` -- the two are not the same shape, and neither
         // is stretched into the other's.
-        auto pedal = [&rect, &size](float rightCqw, float bottomCqw, art::Id id) {
+        auto pedal = [&rect, &size](float rightCqw, float bottomCqw, Control control) {
             const float w = size(SizeClass::Pedal);
-            const float aspect = art::kArt[size_t(id)].aspect;
+            const float aspect = art::InfoOf(art::ArtOf(control)).aspect;
             const float h = aspect > 0.0f ? w / aspect : w;
             return rect(rightCqw - w, bottomCqw - h, w, h);
         };
@@ -352,8 +644,8 @@ namespace hid::touch
         // buttons ride the fan above and to their left.
         const float clusterRight = 100.0f - canvas.right;
         const float clusterBottom = heightCqw - canvas.bottom;
-        d.brake = pedal(clusterRight, clusterBottom, art::Id::Brake);
-        d.throttle = pedal(d.brake.x / u - style.pedalGap * factor, clusterBottom, art::Id::Gas);
+        d.brake = pedal(clusterRight, clusterBottom, Control::Brake);
+        d.throttle = pedal(d.brake.x / u - style.pedalGap * factor, clusterBottom, Control::Throttle);
         // A face button at `degrees` above the bottom edge, on the fan.
         const float face = size(SizeClass::Face);
         const float fanRadius = style.fanRadius * factor;
@@ -409,6 +701,8 @@ namespace hid::touch
         d.shiftUp = rect(shifterX, shifterY, shift, shift);
         d.shiftDown = rect(shifterX, shifterY + shift + style.shiftGap * factor, shift, shift);
 
+        ApplyOverrides(d, canvas, style, overrides);
+
         // How far each control's touch area reaches past its rectangle: as much
         // as it takes to be `minTouch` across, and never more than half the
         // smallest gap to a neighbour -- two inflated areas that met would make
@@ -428,8 +722,8 @@ namespace hid::touch
                 const float down = std::max({ 0.0f, b.y / v - a.Bottom() / v, a.y / v - b.Bottom() / v });
                 gap = std::min(gap, std::hypot(across, down));
             }
-            const art::Info& info = art::kArt[size_t(SpecOf(Control(i)).art)];
-            const float widthCqw = a.w / u;
+            const art::Info& info = art::InfoOf(art::ArtOf(Control(i)));
+            const float widthCqw = Fitted(a, info, u, v).w / u;
             const float want = std::max(0.0f, style.minTouch * factor * 0.5f - info.inradius * widthCqw);
             // (And no further than the packed distance field goes: it saturates
             // at half a picture's width.)
@@ -457,21 +751,27 @@ namespace hid::touch
             const Rect r = deck.Of(c);
             if (r.w <= 0.0f || r.h <= 0.0f)
                 continue;
+            const art::Info& info = art::InfoOf(art::ArtOf(c));
+            // The picture's own rectangle -- the slot's, unless the player's
+            // picture is a different shape from it, in which case the slot's
+            // empty room is not the control.
+            const Rect fitted = Fitted(r, info, deck.uPerCqw, deck.vPerCqw);
             const float pad = deck.padCqw[i];  // cqw
             const float padU = pad * deck.uPerCqw, padV = pad * deck.vPerCqw;
-            if (u < r.x - padU || u > r.Right() + padU || v < r.y - padV || v > r.Bottom() + padV)
+            if (u < fitted.x - padU || u > fitted.Right() + padU || v < fitted.y - padV ||
+                v > fitted.Bottom() + padV)
                 continue;
-            const art::Info& info = art::kArt[size_t(SpecOf(c).art)];
             // No field (the metadata was not packed): the rectangle it is, so
             // the deck stays usable.
             if (info.sdfW < 2 || info.sdfH < 2)
             {
-                if (r.Contains(u, v))
+                if (fitted.Contains(u, v))
                     return c;
                 continue;
             }
             // The pad in the picture's own units (fractions of its width).
-            if (art::Inside(info, (u - r.x) / r.w, (v - r.y) / r.h, pad / (r.w / deck.uPerCqw)))
+            if (art::Inside(info, (u - fitted.x) / fitted.w, (v - fitted.y) / fitted.h,
+                    pad / (fitted.w / deck.uPerCqw)))
                 return c;
         }
         return deck.steerGrab.Contains(u, v) ? Control::Steer : Control::Count;

@@ -212,10 +212,16 @@ static void Gate()
 
 static void Constants()
 {
-    for (const haptic::Pattern p : { haptic::kButtonTap, haptic::kCentreDetent, haptic::kLockDetent })
+    for (const haptic::Pattern p : { haptic::kButtonTap, haptic::kCentreDetent, haptic::kLockDetent,
+             haptic::kRefusedTap, haptic::kGuideTick, haptic::kPickTap })
         CHECK(p.intensity >= 0.0f && p.intensity <= 1.0f && p.sharpness >= 0.0f && p.sharpness <= 1.0f, "cues stay in range");
     CHECK(haptic::kLockDetent.intensity > haptic::kCentreDetent.intensity, "the lock tick is firmer than the centre's");
     CHECK(haptic::kButtonTap.intensity < 1.0f, "a button tap is not the strongest rumble");
+    // The editor's: a refusal is the firmest and dullest of its three, so "no"
+    // is told apart from "a line" and from "another control" by feel alone.
+    CHECK(haptic::kRefusedTap.intensity > haptic::kButtonTap.intensity, "a refusal is firmer than a press");
+    CHECK(haptic::kRefusedTap.sharpness < haptic::kGuideTick.sharpness, "and duller than a line taken");
+    CHECK(haptic::kGuideTick.sharpness > haptic::kPickTap.sharpness, "a line ticks sharper than a pick");
 }
 
 int main()

@@ -63,6 +63,7 @@ namespace ui
         constexpr const char* kNoKey = "none";
         // The Wheel page's Calibrate row (CalibrateRow; hid/wheel.h runs it).
         bool s_describedCal = false;  // the help line describes that row
+        bool s_describedDeck = false;  // (the touch deck editor's row)
 
         void EndWait()
         {
@@ -584,6 +585,16 @@ namespace ui
             return text;
         }
 
+        // Settings > Input > "Edit Touch Deck": the in-game editor
+        // (ui/touch_deck_editor.cpp), which is the only way to move the deck on
+        // a phone or a tablet.
+        void TouchDeckRow(float valueWidth)
+        {
+            const bool activated = ActionRow("touch-deck-edit", "Edit Touch Deck", "Edit", valueWidth, s_describedDeck);
+            if (activated)
+                OpenTouchDeckEditor();
+        }
+
         void CalibrateRow(float valueWidth)
         {
             const bool calibrating = hid::wheel::Calibrating();
@@ -746,6 +757,15 @@ namespace ui
                 }
                 else
                     ImGui::TextDisabled("%s", message.empty() ? " " : message.c_str());
+                return;
+            }
+            if (s_describedDeck)
+            {
+                ImGui::TextWrapped("Moves the on-screen controls: drag one to put it where your thumb wants it, "
+                                   "drag its bottom-right corner to size it, and pick its picture from the row "
+                                   "along the bottom. Snapping follows the nearest line -- another button's edge, "
+                                   "the picture's margin, or the grid -- and can be turned off. A picture of your "
+                                   "own goes in the touch-pictures folder beside touch-deck.toml.");
                 return;
             }
             if (s_describedCal)
@@ -969,6 +989,7 @@ namespace ui
         s_describedBugReport = false;
         s_describedUpdate = false;
         s_describedCal = false;
+        s_describedDeck = false;
         if (s_waiting != Id::Count && settings::Info(s_waiting).category != s_category)
             EndWait();
         if (hid::wheel::Calibrating() && s_category != Category::Wheel)
@@ -1059,6 +1080,8 @@ namespace ui
                                     OptionRow(o, valueWidth, focusFirst);
                                     focusFirst = false;
                                 }
+                        if (category == Category::Input)
+                            TouchDeckRow(valueWidth);
                         if (category == Category::Wheel)
                             CalibrateRow(valueWidth);
                         if (category == Category::Advanced)

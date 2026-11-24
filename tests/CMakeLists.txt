@@ -499,6 +499,34 @@ sb_test(key_map_test)
 # finger that lands on nothing). The overlay's source is passed so the test can
 # check the deck is drawn once per control.
 sb_test(touch_deck_test ARGS ${RT}/ui/touch_overlay.cpp)
+# What a picture's shape is (hid/touch_art_analysis.h, header only), measured
+# the way the packer measures the deck's own art: the synthetic pictures a
+# player might drop in (a disc, a ring with a cut-out middle, an L, a strip, a
+# single pixel, nothing at all, and the ones that must be refused) and then the
+# bundled atlas's eighteen cells, which must come back as the generated table
+# hid/touch_art.h already holds -- the same trim, aspect, inscribed radius and
+# distance field, to within a level.
+sb_test(touch_art_test SOURCES ${RT}/thirdparty/stb_image/stb_image.cpp ARGS
+    ${ROOT}/runtime/ui/touch/deck_atlas.png)
+# The deck editor's arithmetic (hid/touch_edit.h, hid/touch_pick.h, header only):
+# one change to the layout accepted or refused, who it would land on, the names a
+# player sees, a nudge's step and the undo history; and which control a tap takes
+# hold of, with the one under it next.
+sb_test(touch_edit_test)
+# The deck's own file (user/touch_deck_file.cpp): a placement as touch-deck.toml
+# says it, only what differs written, a file that does not parse kept as .bad
+# with the design's layout in force, a control or picture the build does not
+# know skipped, a file from a newer version read and never written, and no
+# temporary left behind.
+if(WIN32)
+    sb_test(touch_deck_file_test SOURCES ${RT}/user/touch_deck_file.cpp ${RT}/platform/win32/file_io.cpp
+        ARGS ${CMAKE_CURRENT_BINARY_DIR}/touch_deck_file_out)
+    target_link_libraries(touch_deck_file_test PRIVATE shell32 ole32)
+else()
+    sb_test(touch_deck_file_test SOURCES ${RT}/user/touch_deck_file.cpp ${RT}/platform/posix/file_io.cpp
+        ARGS ${CMAKE_CURRENT_BINARY_DIR}/touch_deck_file_out)
+endif()
+target_include_directories(touch_deck_file_test SYSTEM PRIVATE ${ROOT}/tools/XenonRecomp/thirdparty/tomlplusplus/include)
 # The touch deck's haptics (hid/haptic_feedback.h, header only): the game's
 # Xbox 360 motors as one phone pattern, the buttons' taps, the steering's
 # centre and lock detents, and the engine's start/stop gate.

@@ -55,10 +55,19 @@ namespace hid::touch
         const char* key;    // the key's name, or nullptr where the picture says it
         KeyFace keyFace;
         SizeClass size;
-        // The picture's share of its rectangle. 1 fills it; the shifter's gears
-        // are rings whose teeth reach the edge of their art, so they are drawn
-        // a little smaller than the discs they stand next to.
-        float drawScale;
+    };
+
+    // How much of its rectangle a picture takes, by picture: 1 fills it, while
+    // the shifter's gears are rings whose teeth reach the edge of their art, so
+    // they are drawn a little smaller than the discs they stand next to. (By
+    // picture rather than by control: a gear swapped onto a face button should
+    // not still be drawn small.)
+    inline constexpr float kDrawScale[art::kCount] = {
+        1.0f, 1.0f, 1.0f, 1.0f, 1.0f,       // AnalogBase .. Handbrake
+        1.0f, 1.0f, 1.0f, 1.0f, 1.0f,       // Nos .. Camera
+        0.86f, 0.86f,                       // GearUp, GearDown
+        1.0f, 1.0f, 1.0f,                   // Pause, Reset, Enter
+        1.0f, 1.0f, 1.0f,                   // List, Map, Message
     };
 
     // In Control's order, so SpecOf is the enum itself.
@@ -66,27 +75,27 @@ namespace hid::touch
         // Steer is the base and the stick both: this is the base's picture,
         // the stick (art::Id::AnalogStick) is drawn on top of it where the
         // drag has taken it.
-        { Control::Steer, art::Id::AnalogBase, "LS", KeyFace::Plain, SizeClass::StickBase, 1.0f },
-        { Control::Throttle, art::Id::Gas, "RT", KeyFace::Plain, SizeClass::Pedal, 1.0f },
-        { Control::Brake, art::Id::Brake, "LT", KeyFace::Plain, SizeClass::Pedal, 1.0f },
-        { Control::Handbrake, art::Id::Handbrake, "A", KeyFace::A, SizeClass::Face, 1.0f },
-        { Control::Nitro, art::Id::Nos, "B", KeyFace::B, SizeClass::Face, 1.0f },
-        { Control::Speedbreaker, art::Id::Speedbreaker, "X", KeyFace::X, SizeClass::Face, 1.0f },
-        { Control::RearView, art::Id::LookBack, "Y", KeyFace::Y, SizeClass::Face, 1.0f },
+        { Control::Steer, art::Id::AnalogBase, "LS", KeyFace::Plain, SizeClass::StickBase },
+        { Control::Throttle, art::Id::Gas, "RT", KeyFace::Plain, SizeClass::Pedal },
+        { Control::Brake, art::Id::Brake, "LT", KeyFace::Plain, SizeClass::Pedal },
+        { Control::Handbrake, art::Id::Handbrake, "A", KeyFace::A, SizeClass::Face },
+        { Control::Nitro, art::Id::Nos, "B", KeyFace::B, SizeClass::Face },
+        { Control::Speedbreaker, art::Id::Speedbreaker, "X", KeyFace::X, SizeClass::Face },
+        { Control::RearView, art::Id::LookBack, "Y", KeyFace::Y, SizeClass::Face },
         // (Its own picture: the deck has one mirror, and the quick glance is
         // drawn from the handoff's icon as its sibling -- scripts/gen_touch_icon.py.)
-        { Control::QuickRearView, art::Id::QuickRearView, "LB", KeyFace::Plain, SizeClass::View, 1.0f },
-        { Control::Camera, art::Id::Camera, "RB", KeyFace::Plain, SizeClass::View, 1.0f },
-        { Control::ShiftUp, art::Id::GearUp, nullptr, KeyFace::None, SizeClass::Shift, 0.86f },
-        { Control::ShiftDown, art::Id::GearDown, nullptr, KeyFace::None, SizeClass::Shift, 0.86f },
+        { Control::QuickRearView, art::Id::QuickRearView, "LB", KeyFace::Plain, SizeClass::View },
+        { Control::Camera, art::Id::Camera, "RB", KeyFace::Plain, SizeClass::View },
+        { Control::ShiftUp, art::Id::GearUp, nullptr, KeyFace::None, SizeClass::Shift },
+        { Control::ShiftDown, art::Id::GearDown, nullptr, KeyFace::None, SizeClass::Shift },
         // The D-pad's four are the things it opens rather than the arrows: the
         // cross says which way each one is.
-        { Control::DpadUp, art::Id::Enter, nullptr, KeyFace::None, SizeClass::Dpad, 1.0f },
-        { Control::DpadDown, art::Id::List, nullptr, KeyFace::None, SizeClass::Dpad, 1.0f },
-        { Control::DpadLeft, art::Id::Map, nullptr, KeyFace::None, SizeClass::Dpad, 1.0f },
-        { Control::DpadRight, art::Id::Message, nullptr, KeyFace::None, SizeClass::Dpad, 1.0f },
-        { Control::Back, art::Id::Reset, "BACK", KeyFace::Plain, SizeClass::System, 1.0f },
-        { Control::Start, art::Id::Pause, "START", KeyFace::Plain, SizeClass::System, 1.0f },
+        { Control::DpadUp, art::Id::Enter, nullptr, KeyFace::None, SizeClass::Dpad },
+        { Control::DpadDown, art::Id::List, nullptr, KeyFace::None, SizeClass::Dpad },
+        { Control::DpadLeft, art::Id::Map, nullptr, KeyFace::None, SizeClass::Dpad },
+        { Control::DpadRight, art::Id::Message, nullptr, KeyFace::None, SizeClass::Dpad },
+        { Control::Back, art::Id::Reset, "BACK", KeyFace::Plain, SizeClass::System },
+        { Control::Start, art::Id::Pause, "START", KeyFace::Plain, SizeClass::System },
     };
 
     inline constexpr const ControlSpec& SpecOf(Control c)

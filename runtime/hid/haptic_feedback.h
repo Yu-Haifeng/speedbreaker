@@ -76,6 +76,15 @@ namespace hid::haptic
     inline constexpr Pattern kCentreDetent { 0.28f, 0.22f };
     inline constexpr Pattern kLockDetent { 0.55f, 0.50f };
 
+    // The deck editor's (ui/touch_deck_editor.cpp), where there is no button to
+    // feel: a change refused is the strongest and the dullest of the three --
+    // something did not fit -- a line taken is a light crisp tick, and picking a
+    // different control a light one. All weaker than the game's rumble's
+    // strongest, so they read as feedback on top of it.
+    inline constexpr Pattern kRefusedTap { 0.85f, 0.12f };
+    inline constexpr Pattern kGuideTick { 0.22f, 0.60f };
+    inline constexpr Pattern kPickTap { 0.30f, 0.50f };
+
     // Every control but the steering, whose feedback is the detents below.
     inline constexpr uint32_t kTapMask = [] {
         uint32_t mask = 0;
